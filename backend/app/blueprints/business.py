@@ -498,3 +498,175 @@ def update_hotel_business_booking_status(itinerary_id, booking_id):
     updated["id"] = booking_id
     updated["itinerary_id"] = itinerary_id
     return success_response(updated, 200, f"Booking marked as {new_status}.")
+
+
+# ─── Restaurant Menu Management ────────────────────────────────────────────────
+
+
+def _normalize_menu_item_payload(data, partial=False):
+    """Validate and normalize a menu item payload."""
+    if not isinstance(data, dict):
+        raise ValueError("Request body must be a JSON object.")
+
+    payload = {}
+
+    if "name" in data or not partial:
+        name = str(data.get("name", "")).strip()
+        if not name:
+            raise ValueError("name is required.")
+        payload["name"] = name
+
+    if "description" in data:
+        payload["description"] = str(data.get("description") or "").strip()
+    elif not partial:
+        payload["description"] = ""
+
+    if "price" in data or not partial:
+        try:
+            price = float(data.get("price"))
+            if price < 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            raise ValueError("price must be a non-negative number.")
+        payload["price"] = price
+
+    if "is_veg" in data:
+        payload["is_veg"] = bool(data.get("is_veg"))
+    elif not partial:
+        payload["is_veg"] = True
+
+    if "servings" in data:
+        payload["servings"] = str(data.get("servings") or "").strip()
+    elif not partial:
+        payload["servings"] = ""
+
+    if "category" in data:
+        payload["category"] = str(data.get("category") or "").strip()
+    elif not partial:
+        payload["category"] = ""
+
+    if "images" in data:
+        if not isinstance(data.get("images"), list):
+            raise ValueError("images must be a list of URLs.")
+        payload["images"] = [str(url).strip() for url in data.get("images") if str(url).strip()]
+    elif not partial:
+        payload["images"] = []
+
+    if payload.get("images"):
+        payload["cover_image"] = payload["images"][0]
+    elif "images" in payload:
+        payload["cover_image"] = None
+
+    if "is_available" in data:
+        payload["is_available"] = bool(data.get("is_available"))
+    elif not partial:
+        payload["is_available"] = True
+
+    return payload
+
+
+@business_bp.route("/restaurant/menu", methods=["GET"])
+@require_auth
+@require_role(BUSINESS_ROLE)
+def get_restaurant_menu_items():
+    """List menu items for a BUSINESS user with RESTAURANT subtype."""
+    db = get_firestore_client()
+    uid = g.current_user["uid"]
+    user_data = _require_restaurant_business_user(db, uid)
+    if not user_data:
+        return error_response("INVALID_ROLE", "Only RESTAURANT business accounts can manage menu items.", 403)
+
+    items = []
+    for doc in db.collection("users").document(uid).collection("menu_items").stream():
+        item = doc.to_dict() or {}
+        item["id"] = doc.id
+        items.append(item)
+
+    items.sort(key=lambda item: item.get("created_at", ""), reverse=True)
+    return success_response(items)
+
+
+@business_bp.route("/restaurant/menu", methods=["POST"])
+@require_auth
+@require_role(BUSINESS_ROLE)
+def create_restaurant_menu_item():
+    """Create a menu item for a BUSINESS user with RESTAURANT subtype."""
+    data = request.get_json()
+    if not data:
+        return error_response("INVALID_BODY", "Request body must be a JSON object.", 400)
+
+    try:
+        payload = _normalize_menu_item_payload(data, partial=False)
+    except ValueError as e:
+        return error_response("INVALID_MENU_DATA", str(e), 400)
+
+    db = get_firestore_client()
+    uid = g.current_user["uid"]
+    user_data = _require_restaurant_business_user(db, uid)
+    if not user_data:
+        return error_response("INVALID_ROLE", "Only RESTAURANT business accounts can manage menu items.", 403)
+
+    now_iso = datetime.utcnow().isoformat()
+    payload["created_at"] = now_iso
+    payload["updated_at"] = now_iso
+
+    item_ref = db.collection("users").document(uid).collection("menu_items").document()
+    item_ref.set(payload)
+    created = item_ref.get().to_dict() or {}
+    created["id"] = item_ref.id
+    return success_response(created, 201, "Menu item created successfully.")
+
+
+@business_bp.route("/restaurant/menu/<item_id>", methods=["PUT"])
+@require_auth
+@require_role(BUSINESS_ROLE)
+def update_restaurant_menu_item(item_id):
+    """Update a menu item for a BUSINESS user with RESTAURANT subtype."""
+    data = request.get_json()
+    if not data:
+        return error_response("INVALID_BODY", "Request body must be a JSON object.", 400)
+
+    try:
+        payload = _normalize_menu_item_payload(data, partial=True)
+    except ValueError as e:
+        return error_response("INVALID_MENU_DATA", str(e), 400)
+
+    if not payload:
+        return error_response("NO_FIELDS", "No menu item fields provided.", 400)
+
+    db = get_firestore_client()
+    uid = g.current_user["uid"]
+    user_data = _require_restaurant_business_user(db, uid)
+    if not user_data:
+        return error_response("INVALID_ROLE", "Only RESTAURANT business accounts can manage menu items.", 403)
+
+    item_ref = db.collection("users").document(uid).collection("menu_items").document(item_id)
+    item_doc = item_ref.get()
+    if not item_doc.exists:
+        return error_response("NOT_FOUND", "Menu item not found.", 404)
+
+    payload["updated_at"] = datetime.utcnow().isoformat()
+    item_ref.set(payload, merge=True)
+    updated = item_ref.get().to_dict() or {}
+    updated["id"] = item_id
+    return success_response(updated, 200, "Menu item updated successfully.")
+
+
+@business_bp.route("/restaurant/menu/<item_id>", methods=["DELETE"])
+@require_auth
+@require_role(BUSINESS_ROLE)
+def delete_restaurant_menu_item(item_id):
+    """Delete a menu item for a BUSINESS user with RESTAURANT subtype."""
+    db = get_firestore_client()
+    uid = g.current_user["uid"]
+    user_data = _require_restaurant_business_user(db, uid)
+    if not user_data:
+        return error_response("INVALID_ROLE", "Only RESTAURANT business accounts can manage menu items.", 403)
+
+    item_ref = db.collection("users").document(uid).collection("menu_items").document(item_id)
+    item_doc = item_ref.get()
+    if not item_doc.exists:
+        return error_response("NOT_FOUND", "Menu item not found.", 404)
+
+    item_ref.delete()
+    return success_response({"id": item_id}, 200, "Menu item deleted successfully.")
