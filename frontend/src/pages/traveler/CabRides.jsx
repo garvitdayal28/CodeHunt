@@ -3,13 +3,15 @@ import { Activity, Clock3, LoaderCircle, LocateFixed, Search, Users } from 'luci
 
 import api from '../../api/axios';
 import RideHistoryTable from '../../components/rides/RideHistoryTable';
-import RideQuoteCard from '../../components/rides/RideQuoteCard';
 import RideStatusCard from '../../components/rides/RideStatusCard';
 import RideTrackingMap from '../../components/rides/RideTrackingMap';
 import StarRatingInput from '../../components/rides/StarRatingInput';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
+import ConfirmModal from '../../components/ui/ConfirmModal';
+import Modal from '../../components/ui/Modal';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNotificationSound } from '../../hooks/useNotificationSound';
 import { useRidesSocket } from '../../hooks/useRidesSocket';
 
 const ACTIVE_STATUSES = [
@@ -34,6 +36,8 @@ export default function CabRides() {
   const [ratingStars, setRatingStars] = useState(0);
   const [ratingMessage, setRatingMessage] = useState('');
   const [showRating, setShowRating] = useState(false);
+  const [quoteModalOpen, setQuoteModalOpen] = useState(false);
+  const [endRideConfirmOpen, setEndRideConfirmOpen] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
   const [requestPending, setRequestPending] = useState(false);
@@ -54,6 +58,7 @@ export default function CabRides() {
   const { userProfile } = useAuth();
 
   const { socket, connected, emitEvent } = useRidesSocket(true);
+  const { play } = useNotificationSound();
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -85,6 +90,12 @@ export default function CabRides() {
   useEffect(() => {
     fetchHistory();
   }, []);
+
+  useEffect(() => {
+    if (activeRide?.status === 'QUOTE_SENT') {
+      setQuoteModalOpen(true);
+    }
+  }, [activeRide?.id, activeRide?.status]);
 
   useEffect(() => {
     const onDocClick = (event) => {
@@ -175,16 +186,26 @@ export default function CabRides() {
       if (ride.status === 'EXPIRED') {
         setFeedback('');
         setError('No driver accepted in time. Please try again or adjust pickup location.');
+        play('warning');
       }
       fetchHistory();
       if (ride.status === 'COMPLETED') {
         setShowRating(true);
+        setQuoteModalOpen(false);
+        play('success');
       }
     };
     const onQuote = (payload) => {
       const ride = payload?.ride;
       if (ride) {
         setActiveRide(ride);
+        if (ride.status === 'QUOTE_SENT') {
+          setQuoteModalOpen(true);
+          play('incoming');
+        }
+        if (ride.status === 'QUOTE_ACCEPTED') {
+          play('success');
+        }
       }
     };
     const onLocation = (payload) => {
@@ -199,6 +220,7 @@ export default function CabRides() {
       setRequestPending(false);
       setRequestSecondsLeft(0);
       setError(payload?.message || 'Ride operation failed.');
+      play('warning');
     };
 
     socket.on('rides:nearby_drivers', onNearbyDrivers);
@@ -224,7 +246,7 @@ export default function CabRides() {
       socket.off('ride:error', onError);
       socket.off('ride:completed', onStatus);
     };
-  }, [socket, activeRide]);
+  }, [socket, activeRide, play]);
 
   useEffect(() => {
     if (!requestPending || !requestStartedAt) return undefined;
@@ -348,6 +370,7 @@ export default function CabRides() {
       setRequestStartedAt(new Date().toISOString());
       setRequestSecondsLeft(45);
       setFeedback('Request sent. Matching you with nearby drivers now.');
+      play('info');
     } catch (err) {
       setRequestPending(false);
       setRequestSecondsLeft(0);
@@ -361,12 +384,17 @@ export default function CabRides() {
     if (!activeRide) return;
     setQuoteActionLoading(true);
     emitEvent('traveler:accept_quote', { ride_id: activeRide.id });
+    setQuoteModalOpen(false);
+    setFeedback('Quote accepted. Waiting for driver to start ride.');
+    play('success');
     setQuoteActionLoading(false);
   };
 
   const handleRejectQuote = () => {
     if (!activeRide) return;
     emitEvent('traveler:reject_quote', { ride_id: activeRide.id });
+    setQuoteModalOpen(false);
+    play('warning');
   };
 
   const handleEndRide = async () => {
@@ -377,9 +405,12 @@ export default function CabRides() {
       const ride = res?.data?.data;
       setActiveRide(null);
       setShowRating(true);
+      setEndRideConfirmOpen(false);
       setHistory((prev) => [ride, ...prev.filter((item) => item.id !== ride.id)]);
+      play('success');
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to end ride.');
+      play('warning');
     }
   };
 
@@ -396,8 +427,10 @@ export default function CabRides() {
       setRatingMessage('');
       setFeedback('Rating submitted successfully.');
       fetchHistory();
+      play('success');
     } catch (err) {
       setError(err?.response?.data?.message || 'Failed to submit rating.');
+      play('warning');
     }
   };
 
@@ -585,13 +618,6 @@ export default function CabRides() {
 
       <RideStatusCard ride={activeRide} />
 
-      <RideQuoteCard
-        ride={activeRide}
-        loading={quoteActionLoading}
-        onAccept={handleAcceptQuote}
-        onReject={handleRejectQuote}
-      />
-
       {activeRide && (
         <RideTrackingMap ride={activeRide} />
       )}
@@ -599,29 +625,7 @@ export default function CabRides() {
       {activeRide && ['IN_PROGRESS', 'DRIVER_EN_ROUTE', 'QUOTE_ACCEPTED'].includes(activeRide.status) && (
         <Card>
           <h3 className="text-label-lg text-ink mb-2">Reached destination?</h3>
-          <Button onClick={handleEndRide}>End Ride</Button>
-        </Card>
-      )}
-
-      {showRating && (
-        <Card>
-          <h3 className="text-label-lg text-ink mb-2">Rate Driver (Optional)</h3>
-          <StarRatingInput value={ratingStars} onChange={setRatingStars} />
-          <textarea
-            className="
-              mt-3 block w-full min-h-24 px-3 py-2
-              bg-white border border-border
-              rounded-lg text-[14px] text-ink placeholder-text-placeholder
-              outline-none transition-all duration-150
-              focus:border-accent focus:ring-2 focus:ring-accent/20
-            "
-            placeholder="Optional feedback message"
-            value={ratingMessage}
-            onChange={(e) => setRatingMessage(e.target.value)}
-          />
-          <div className="mt-3">
-            <Button onClick={handleSubmitRating}>Submit Rating</Button>
-          </div>
+          <Button onClick={() => setEndRideConfirmOpen(true)}>End Ride</Button>
         </Card>
       )}
 
@@ -630,6 +634,61 @@ export default function CabRides() {
       ) : (
         <RideHistoryTable title="Ride History" rides={history} travelerView />
       )}
+
+      <Modal
+        open={quoteModalOpen && activeRide?.status === 'QUOTE_SENT'}
+        onClose={() => setQuoteModalOpen(false)}
+        title="Quote Received"
+        footer={(
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="secondary" onClick={handleRejectQuote}>Reject</Button>
+            <Button loading={quoteActionLoading} onClick={handleAcceptQuote}>Accept Quote</Button>
+          </div>
+        )}
+      >
+        <p className="text-[14px] text-text-secondary">
+          Driver quoted <span className="font-semibold text-ink">{activeRide?.currency || 'INR'} {activeRide?.quoted_price}</span>
+        </p>
+        {activeRide?.quote_note && (
+          <p className="text-[13px] text-text-secondary mt-2">Note: {activeRide.quote_note}</p>
+        )}
+      </Modal>
+
+      <ConfirmModal
+        open={endRideConfirmOpen}
+        title="End Ride"
+        message="Confirm that you have reached destination and want to end this ride."
+        onCancel={() => setEndRideConfirmOpen(false)}
+        onConfirm={handleEndRide}
+        confirmLabel="End Ride"
+        confirmVariant="danger"
+      />
+
+      <Modal
+        open={showRating}
+        onClose={() => setShowRating(false)}
+        title="Rate Driver (Optional)"
+        footer={(
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="secondary" onClick={() => setShowRating(false)}>Skip</Button>
+            <Button onClick={handleSubmitRating}>Submit Rating</Button>
+          </div>
+        )}
+      >
+        <StarRatingInput value={ratingStars} onChange={setRatingStars} />
+        <textarea
+          className="
+            mt-3 block w-full min-h-24 px-3 py-2
+            bg-white border border-border
+            rounded-lg text-[14px] text-ink placeholder-text-placeholder
+            outline-none transition-all duration-150
+            focus:border-accent focus:ring-2 focus:ring-accent/20
+          "
+          placeholder="Optional feedback message"
+          value={ratingMessage}
+          onChange={(e) => setRatingMessage(e.target.value)}
+        />
+      </Modal>
     </div>
   );
 }

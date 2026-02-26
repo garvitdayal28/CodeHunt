@@ -7,6 +7,7 @@ import {
   ChevronDown,
   LayoutDashboard,
   Car,
+  Star,
   LogOut,
   MapPin,
   Search,
@@ -31,6 +32,7 @@ const roleNavigation = {
   BUSINESS: [
     { name: 'Dashboard', href: '/business/dashboard', icon: LayoutDashboard },
     { name: 'Rides', href: '/business/rides', icon: Car, cabOnly: true },
+    { name: 'Ratings', href: '/business/ratings', icon: Star, cabOnly: true },
   ],
   HOTEL_ADMIN: [
     { name: 'Dashboard', href: '/hotel/dashboard', icon: LayoutDashboard },

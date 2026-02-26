@@ -3,13 +3,17 @@ import { Activity, CarTaxiFront, Navigation, Send } from 'lucide-react';
 
 import api from '../../api/axios';
 import DriverOnlineToggle from '../../components/rides/DriverOnlineToggle';
+import StarRatingDisplay from '../../components/ratings/StarRatingDisplay';
 import RideHistoryTable from '../../components/rides/RideHistoryTable';
 import RideStatusCard from '../../components/rides/RideStatusCard';
 import RideTrackingMap from '../../components/rides/RideTrackingMap';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
+import ConfirmModal from '../../components/ui/ConfirmModal';
 import Input from '../../components/ui/Input';
+import Modal from '../../components/ui/Modal';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNotificationSound } from '../../hooks/useNotificationSound';
 import { useRidesSocket } from '../../hooks/useRidesSocket';
 
 const ACTIVE_STATUSES = [
@@ -33,7 +37,16 @@ export default function BusinessRides() {
   const [warning, setWarning] = useState('');
   const [success, setSuccess] = useState('');
   const [latestLocation, setLatestLocation] = useState(null);
+  const [acceptConfirmOpen, setAcceptConfirmOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState(null);
+  const [quoteModalOpen, setQuoteModalOpen] = useState(false);
+  const [quotePromptedRideId, setQuotePromptedRideId] = useState('');
+  const [quoteAcceptedModalOpen, setQuoteAcceptedModalOpen] = useState(false);
+  const [rideCompletedModalOpen, setRideCompletedModalOpen] = useState(false);
+  const [ratingModalOpen, setRatingModalOpen] = useState(false);
+  const [latestRating, setLatestRating] = useState(null);
   const watchIdRef = useRef(null);
+  const { play } = useNotificationSound();
 
   const { socket, connected, emitEvent } = useRidesSocket(true);
 
@@ -61,12 +74,20 @@ export default function BusinessRides() {
   }, [businessType]);
 
   useEffect(() => {
+    if (currentRide?.status === 'ACCEPTED_PENDING_QUOTE' && quotePromptedRideId !== currentRide.id) {
+      setQuotePromptedRideId(currentRide.id);
+      setQuoteModalOpen(true);
+    }
+  }, [currentRide?.id, currentRide?.status, quotePromptedRideId]);
+
+  useEffect(() => {
     if (!socket) return undefined;
 
     const onRequest = (payload) => {
       if (payload?.ride) {
         setError('');
         setIncoming((prev) => [payload.ride, ...prev.filter((item) => item.id !== payload.ride.id)]);
+        play('incoming');
       }
     };
     const onStatus = (payload) => {
@@ -75,11 +96,35 @@ export default function BusinessRides() {
       setError('');
       if (ACTIVE_STATUSES.includes(ride.status)) {
         setCurrentRide(ride);
+        if (ride.status === 'ACCEPTED_PENDING_QUOTE' && quotePromptedRideId !== ride.id) {
+          setQuotePromptedRideId(ride.id);
+          setQuoteModalOpen(true);
+        }
       } else if (currentRide?.id === ride.id) {
         setCurrentRide(null);
       }
       setIncoming((prev) => prev.filter((item) => item.id !== ride.id));
       fetchHistory();
+    };
+    const onQuoteAccepted = (payload) => {
+      const ride = payload?.ride;
+      if (!ride) return;
+      setCurrentRide(ride);
+      setQuoteAcceptedModalOpen(true);
+      setSuccess('Traveler accepted your quote. Start the ride now.');
+      play('success');
+    };
+    const onCompleted = (payload) => {
+      onStatus(payload);
+      setQuoteAcceptedModalOpen(false);
+      setQuoteModalOpen(false);
+      setRideCompletedModalOpen(true);
+      play('success');
+    };
+    const onRated = (payload) => {
+      setLatestRating(payload || null);
+      setRatingModalOpen(true);
+      play('incoming');
     };
     const onLocation = (payload) => {
       if (!payload?.ride_id || !currentRide || payload.ride_id !== currentRide.id) return;
@@ -96,7 +141,9 @@ export default function BusinessRides() {
     socket.on('ride:location_updated', onLocation);
     socket.on('ride:eta_updated', onEta);
     socket.on('ride:error', onError);
-    socket.on('ride:completed', onStatus);
+    socket.on('ride:quote_accepted', onQuoteAccepted);
+    socket.on('ride:completed', onCompleted);
+    socket.on('ride:rated', onRated);
 
     return () => {
       socket.off('ride:request_received', onRequest);
@@ -104,9 +151,11 @@ export default function BusinessRides() {
       socket.off('ride:location_updated', onLocation);
       socket.off('ride:eta_updated', onEta);
       socket.off('ride:error', onError);
-      socket.off('ride:completed', onStatus);
+      socket.off('ride:quote_accepted', onQuoteAccepted);
+      socket.off('ride:completed', onCompleted);
+      socket.off('ride:rated', onRated);
     };
-  }, [socket, currentRide]);
+  }, [socket, currentRide, play, quotePromptedRideId]);
 
   useEffect(() => {
     if (!online) {
@@ -165,9 +214,17 @@ export default function BusinessRides() {
   };
 
   const handleAcceptRequest = (ride) => {
+    setSelectedRequest(ride);
+    setAcceptConfirmOpen(true);
+  };
+
+  const handleConfirmAcceptRequest = () => {
+    if (!selectedRequest) return;
     setError('');
     setSuccess('');
-    emitEvent('driver:accept_request', { ride_id: ride.id });
+    emitEvent('driver:accept_request', { ride_id: selectedRequest.id });
+    setAcceptConfirmOpen(false);
+    setSuccess('Accepting request. You will be prompted to submit quote.');
   };
 
   const handleSubmitQuote = () => {
@@ -186,7 +243,9 @@ export default function BusinessRides() {
     });
     setQuotePrice('');
     setQuoteNote('');
+    setQuoteModalOpen(false);
     setSuccess('Quote submitted.');
+    play('success');
   };
 
   const handleStartRide = () => {
@@ -194,6 +253,7 @@ export default function BusinessRides() {
     setError('');
     setSuccess('');
     emitEvent('driver:start_ride', { ride_id: currentRide.id });
+    setQuoteAcceptedModalOpen(false);
   };
 
   const incomingRequests = useMemo(
@@ -292,30 +352,10 @@ export default function BusinessRides() {
 
       {currentRide?.status === 'ACCEPTED_PENDING_QUOTE' && (
         <Card>
-          <h3 className="text-label-lg text-ink mb-3">Send Quote</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Input
-              label="Price"
-              type="number"
-              min="1"
-              value={quotePrice}
-              onChange={(e) => setQuotePrice(e.target.value)}
-              placeholder="e.g. 250"
-            />
-            <Input
-              label="Currency"
-              value="INR"
-              disabled
-            />
-            <Input
-              label="Note (optional)"
-              value={quoteNote}
-              onChange={(e) => setQuoteNote(e.target.value)}
-              placeholder="Traffic surcharge included"
-            />
-          </div>
+          <h3 className="text-label-lg text-ink mb-2">Quote Pending</h3>
+          <p className="text-[13px] text-text-secondary">Submit a quote to continue this ride.</p>
           <div className="mt-3">
-            <Button icon={Send} onClick={handleSubmitQuote}>Submit Quote</Button>
+            <Button icon={Send} onClick={() => setQuoteModalOpen(true)}>Open Quote Modal</Button>
           </div>
         </Card>
       )}
@@ -336,6 +376,98 @@ export default function BusinessRides() {
       ) : (
         <RideHistoryTable title="Ride History" rides={history} travelerView={false} />
       )}
+
+      <ConfirmModal
+        open={acceptConfirmOpen}
+        title="Accept Ride Request"
+        message={selectedRequest ? `Accept request from ${selectedRequest.source?.address || '-'} to ${selectedRequest.destination?.address || '-' }?` : 'Accept this ride request?'}
+        onCancel={() => setAcceptConfirmOpen(false)}
+        onConfirm={handleConfirmAcceptRequest}
+        confirmLabel="Accept Ride"
+      />
+
+      <Modal
+        open={quoteModalOpen}
+        onClose={() => setQuoteModalOpen(false)}
+        title="Submit Quote"
+        footer={(
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="secondary" onClick={() => setQuoteModalOpen(false)}>Cancel</Button>
+            <Button icon={Send} onClick={handleSubmitQuote}>Submit Quote</Button>
+          </div>
+        )}
+      >
+        <div className="grid grid-cols-1 gap-3">
+          <Input
+            label="Price"
+            type="number"
+            min="1"
+            value={quotePrice}
+            onChange={(e) => setQuotePrice(e.target.value)}
+            placeholder="e.g. 250"
+          />
+          <Input label="Currency" value="INR" disabled />
+          <Input
+            label="Note (optional)"
+            value={quoteNote}
+            onChange={(e) => setQuoteNote(e.target.value)}
+            placeholder="Traffic surcharge included"
+          />
+        </div>
+      </Modal>
+
+      <Modal
+        open={quoteAcceptedModalOpen}
+        onClose={() => setQuoteAcceptedModalOpen(false)}
+        title="Quote Accepted"
+        footer={(
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="secondary" onClick={() => setQuoteAcceptedModalOpen(false)}>Later</Button>
+            <Button icon={Navigation} onClick={handleStartRide}>Start Ride</Button>
+          </div>
+        )}
+      >
+        <p className="text-[14px] text-text-secondary">Traveler accepted your quote. Start ride when ready.</p>
+      </Modal>
+
+      <Modal
+        open={rideCompletedModalOpen}
+        onClose={() => setRideCompletedModalOpen(false)}
+        title="Ride Completed"
+        footer={(
+          <div className="flex items-center justify-end">
+            <Button onClick={() => setRideCompletedModalOpen(false)}>Okay</Button>
+          </div>
+        )}
+      >
+        <p className="text-[14px] text-text-secondary">Traveler marked this ride as completed.</p>
+      </Modal>
+
+      <Modal
+        open={ratingModalOpen}
+        onClose={() => setRatingModalOpen(false)}
+        title="New Rating Received"
+        footer={(
+          <div className="flex items-center justify-end">
+            <Button onClick={() => setRatingModalOpen(false)}>Close</Button>
+          </div>
+        )}
+      >
+        <div className="space-y-3">
+          <div>
+            <p className="text-[12px] text-text-secondary">Traveler</p>
+            <p className="text-[14px] text-ink font-medium">{latestRating?.traveler_name || '-'}</p>
+          </div>
+          <div>
+            <p className="text-[12px] text-text-secondary">Stars</p>
+            <StarRatingDisplay value={latestRating?.rating?.stars || 0} />
+          </div>
+          <div>
+            <p className="text-[12px] text-text-secondary">Feedback</p>
+            <p className="text-[14px] text-ink">{latestRating?.rating?.message || 'No text feedback.'}</p>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

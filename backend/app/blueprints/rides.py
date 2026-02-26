@@ -6,7 +6,7 @@ from flask import Blueprint, g, request
 
 from app.services.firebase_service import get_firestore_client
 from app.services.geocode_service import forward_geocode, reverse_geocode, suggest_addresses
-from app.services.socket_service import end_ride_by_traveler
+from app.services.socket_service import end_ride_by_traveler, get_socketio
 from app.utils.auth import require_auth, require_role
 from app.utils.responses import error_response, success_response
 from app.utils.rides import (
@@ -72,6 +72,63 @@ def driver_rides():
 
     rides.sort(key=lambda r: r.get("created_at", ""), reverse=True)
     return success_response(rides)
+
+
+@rides_bp.route("/driver/ratings", methods=["GET"])
+@require_auth
+@require_role("BUSINESS")
+def driver_ratings():
+    db = get_firestore_client()
+    uid = g.current_user["uid"]
+    if _require_cab_driver(uid) is None:
+        return error_response("FORBIDDEN", "Only CAB_DRIVER business users can access driver ratings.", 403)
+
+    ratings = []
+    total_rides = 0
+    rated_count = 0
+    stars_sum = 0
+    text_feedback_count = 0
+
+    query = db.collection("rides").where("driver_uid", "==", uid)
+    for doc in query.stream():
+        total_rides += 1
+        ride = doc.to_dict() or {}
+        rating = ride.get("rating") or {}
+        stars = rating.get("stars")
+        message = str(rating.get("message") or "").strip()
+        has_stars = isinstance(stars, int) and 1 <= stars <= 5
+        has_message = bool(message)
+
+        if has_stars:
+            rated_count += 1
+            stars_sum += stars
+        if has_message:
+            text_feedback_count += 1
+
+        if not has_stars and not has_message:
+            continue
+
+        ratings.append(
+            {
+                "ride_id": doc.id,
+                "stars": stars if has_stars else None,
+                "message": message or None,
+                "traveler_name": ride.get("traveler_name"),
+                "source": (ride.get("source") or {}).get("address"),
+                "destination": (ride.get("destination") or {}).get("address"),
+                "completed_at": ride.get("completed_at"),
+                "updated_at": rating.get("updated_at") or ride.get("updated_at") or ride.get("created_at"),
+            }
+        )
+
+    ratings.sort(key=lambda r: r.get("updated_at", ""), reverse=True)
+    summary = {
+        "total_rides": total_rides,
+        "rated_rides": rated_count,
+        "text_feedback_count": text_feedback_count,
+        "average_stars": round((stars_sum / rated_count), 2) if rated_count else None,
+    }
+    return success_response({"summary": summary, "ratings": ratings})
 
 
 @rides_bp.route("/<ride_id>", methods=["GET"])
@@ -268,4 +325,21 @@ def rate_driver(ride_id):
 
     updated = db.collection("rides").document(ride_id).get().to_dict()
     updated["id"] = ride_id
+
+    if driver_uid:
+        socketio = get_socketio()
+        socketio.emit(
+            "ride:rated",
+            {
+                "ride_id": ride_id,
+                "rating": {
+                    "stars": normalized_stars,
+                    "message": message or None,
+                },
+                "traveler_name": ride.get("traveler_name"),
+            },
+            room=f"user:{driver_uid}",
+            namespace="/rides",
+        )
+
     return success_response(updated, 200, "Rating submitted.")
