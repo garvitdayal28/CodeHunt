@@ -298,10 +298,7 @@ def init_socketio(app):
         if not socketio.server:
             socketio.init_app(
                 app,
-                cors_allowed_origins=[
-                    app.config.get("FRONTEND_ORIGIN", "http://localhost:5173"),
-                    "http://192.168.29.7:5173"
-                ],
+                cors_allowed_origins="*",
                 async_mode="threading",
             )
 

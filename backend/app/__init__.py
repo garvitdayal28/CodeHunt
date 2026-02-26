@@ -31,8 +31,7 @@ def create_app(config_name=None):
     # ──────────────────────────────────────────────
     # CORS
     # ──────────────────────────────────────────────
-    frontend_origin = app.config.get("FRONTEND_ORIGIN", "http://localhost:5173")
-    CORS(app, origins=[frontend_origin, "http://192.168.29.7:5173"], supports_credentials=True)
+    CORS(app, origins="*", supports_credentials=True)
 
     # ──────────────────────────────────────────────
     # Initialize Firebase
