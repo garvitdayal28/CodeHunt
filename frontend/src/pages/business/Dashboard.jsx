@@ -55,6 +55,7 @@ export default function BusinessDashboard() {
   const [bookingActionLoadingId, setBookingActionLoadingId] = useState('');
 
   const isHotelBusiness = businessForm.businessType === 'HOTEL';
+  const isRestaurantBusiness = businessForm.businessType === 'RESTAURANT';
 
   const updateBusinessField = (field, value) => {
     setBusinessForm((prev) => ({ ...prev, [field]: value }));
@@ -136,6 +137,7 @@ export default function BusinessDashboard() {
         { label: 'Cuisine', value: businessForm.cuisine },
         { label: 'Opening hours', value: businessForm.openingHours },
         { label: 'Seating capacity', value: businessForm.seatingCapacity },
+        { label: 'Gallery images', value: `${(businessForm.restaurantImages || []).length}` },
       ];
     }
     if (businessForm.businessType === 'CAB_DRIVER') {
@@ -364,6 +366,25 @@ export default function BusinessDashboard() {
               </Card>
             </>
           )}
+
+          {isRestaurantBusiness && (
+            <Card>
+              {(businessForm.restaurantImages || []).length > 0 ? (
+                <div>
+                  <h3 className="text-label-lg text-ink mb-3">Restaurant Gallery</h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {(businessForm.restaurantImages || []).map((url) => (
+                      <img key={url} src={url} alt="Restaurant" className="h-28 w-full object-cover rounded-lg border border-border" />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[13px] text-text-secondary">
+                  No restaurant photos uploaded yet. Use edit mode to upload your gallery.
+                </p>
+              )}
+            </Card>
+          )}
         </>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -489,6 +510,20 @@ export default function BusinessDashboard() {
                   onChange={(e) => updateBusinessField('seatingCapacity', e.target.value)}
                   required
                 />
+                <div className="pt-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ImageIcon className="h-4 w-4 text-text-muted" />
+                    <p className="text-[13px] font-medium text-ink">Restaurant Gallery</p>
+                  </div>
+                  <ImageUploadInput
+                    label="Restaurant Images"
+                    images={businessForm.restaurantImages || []}
+                    onChange={(images) => updateBusinessField('restaurantImages', images)}
+                    uploadPath="/business/restaurant/upload-image"
+                    folder={userUid ? `tripallied/business/${userUid}/restaurant` : 'tripallied/business/restaurant'}
+                    maxFiles={20}
+                  />
+                </div>
               </>
             )}
 

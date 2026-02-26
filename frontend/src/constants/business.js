@@ -27,6 +27,7 @@ export function createEmptyBusinessForm() {
     totalRooms: '',
     amenities: '',
     hotelImages: [],
+    restaurantImages: [],
     cuisine: '',
     openingHours: '',
     seatingCapacity: '',
@@ -64,6 +65,7 @@ export function buildBusinessProfilePayload(form) {
   } else if (form.businessType === 'RESTAURANT') {
     payload.cuisine = form.cuisine?.trim() || '';
     payload.opening_hours = form.openingHours?.trim() || '';
+    payload.image_urls = form.restaurantImages || [];
     payload.seating_capacity = form.seatingCapacity;
   } else if (form.businessType === 'CAB_DRIVER') {
     payload.driver_name = form.driverName?.trim() || '';
@@ -104,6 +106,7 @@ export function businessProfileToForm(profile) {
     totalRooms: details.total_rooms?.toString() || '',
     amenities: (details.amenities || []).join(', '),
     hotelImages: details.image_urls || [],
+    restaurantImages: details.image_urls || [],
     cuisine: details.cuisine || '',
     openingHours: details.opening_hours || '',
     seatingCapacity: details.seating_capacity?.toString() || '',
