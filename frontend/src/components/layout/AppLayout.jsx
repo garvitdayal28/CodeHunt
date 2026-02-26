@@ -87,7 +87,7 @@ export default function AppLayout() {
     <div className="min-h-screen bg-white flex flex-col">
       <header className="sticky top-0 z-50 bg-white border-b border-border shadow-nav">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center h-14">
-          <Link to="/" className="flex items-center gap-2 mr-4 shrink-0">
+          <Link to="/" className="flex items-center gap-2 mr-10 shrink-0">
             <img src="/Logo-removedbg.png" alt="TripAllied" className="h-8 w-8 object-contain" />
             <span className="text-[17px] font-semibold text-ink tracking-tight">TripAllied</span>
           </Link>
