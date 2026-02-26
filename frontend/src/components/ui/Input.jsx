@@ -4,8 +4,10 @@ export default function Input({
   icon: Icon,
   type = 'text',
   className = '',
+  inputSize = 'md',
   ...props
 }) {
+  const heightClass = inputSize === 'lg' ? 'h-11' : 'h-10';
   return (
     <div className={`space-y-1.5 ${className}`}>
       {label && (
@@ -20,11 +22,12 @@ export default function Input({
         <input
           type={type}
           className={`
-            block w-full h-10 px-3
+            block w-full ${heightClass} px-3
             ${Icon ? 'pl-10' : ''}
             bg-white border
             ${error ? 'border-danger focus:border-danger focus:ring-danger/20' : 'border-border focus:border-accent focus:ring-accent/20'}
-            rounded-lg text-[14px] text-ink placeholder-text-placeholder
+            ${inputSize === 'lg' ? 'rounded-xl text-[15px]' : 'rounded-lg text-[14px]'}
+            text-ink placeholder-text-placeholder
             outline-none transition-all duration-150
             focus:ring-2
           `}
@@ -36,7 +39,8 @@ export default function Input({
   );
 }
 
-export function Select({ label, error, children, className = '', ...props }) {
+export function Select({ label, error, children, className = '', inputSize = 'md', ...props }) {
+  const heightClass = inputSize === 'lg' ? 'h-11' : 'h-10';
   return (
     <div className={`space-y-1.5 ${className}`}>
       {label && (
@@ -44,10 +48,10 @@ export function Select({ label, error, children, className = '', ...props }) {
       )}
       <select
         className={`
-          block w-full h-10 px-3
+          block w-full ${heightClass} px-3
           bg-white border border-border
-          rounded-lg text-[14px] text-ink
-          outline-none transition-all duration-150 cursor-pointer
+          ${inputSize === 'lg' ? 'rounded-xl text-[15px]' : 'rounded-lg text-[14px]'}
+          text-ink outline-none transition-all duration-150 cursor-pointer
           focus:border-accent focus:ring-2 focus:ring-accent/20
         `}
         {...props}

@@ -524,3 +524,169 @@ def search_tours():
     except Exception as e:
         logger.warning(f"Tour search failed: {e}")
         return success_response([])
+
+
+# ─── Restaurant Search ────────────────────────────────────────────────────────
+
+
+def _is_business_restaurant_user(user_data):
+    business_profile = user_data.get("business_profile") or {}
+    return (
+        user_data.get("role") == "BUSINESS"
+        and business_profile.get("business_type") == "RESTAURANT"
+    )
+
+
+def _build_restaurant_profile(user_doc):
+    user_data = user_doc.to_dict() or {}
+    business_profile = user_data.get("business_profile") or {}
+    details = business_profile.get("details") or {}
+    image_urls = details.get("image_urls") or []
+
+    return {
+        "id": user_doc.id,
+        "restaurant_owner_uid": user_doc.id,
+        "name": business_profile.get("business_name") or user_data.get("display_name") or "Restaurant",
+        "location": business_profile.get("city") or "",
+        "address": business_profile.get("address") or "",
+        "description": business_profile.get("description") or "",
+        "cuisine": details.get("cuisine") or "",
+        "opening_hours": details.get("opening_hours") or "",
+        "seating_capacity": details.get("seating_capacity") or 0,
+        "image_urls": image_urls,
+        "image_url": image_urls[0] if image_urls else "",
+        "source": "business_restaurant",
+    }
+
+
+def _restaurant_matches_destination(restaurant_profile, destination):
+    if not destination:
+        return True
+    normalized = _normalize_text(destination)
+    haystack = " ".join(
+        [
+            _normalize_text(restaurant_profile.get("name")),
+            _normalize_text(restaurant_profile.get("location")),
+            _normalize_text(restaurant_profile.get("address")),
+        ]
+    )
+    return normalized in haystack
+
+
+def _sort_restaurants(restaurants, sort_by):
+    if sort_by == "name_desc":
+        return sorted(restaurants, key=lambda r: _normalize_text(r.get("name")), reverse=True)
+    if sort_by == "name_asc":
+        return sorted(restaurants, key=lambda r: _normalize_text(r.get("name")))
+    return sorted(restaurants, key=lambda r: _normalize_text(r.get("name")))
+
+
+@search_bp.route("/restaurants", methods=["GET"])
+def search_restaurants():
+    """
+    Search restaurants from internal BUSINESS/RESTAURANT inventory.
+    """
+    destination = request.args.get("destination", "").strip()
+    cuisine = request.args.get("cuisine", "").strip()
+    sort_by = request.args.get("sort_by", "name_asc").strip()
+
+    cache_key = f"restaurants:internal:{destination}:{cuisine}:{sort_by}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return success_response(cached)
+
+    db = get_firestore_client()
+    restaurants = []
+
+    for user_doc in db.collection("users").where("role", "==", "BUSINESS").stream():
+        user_data = user_doc.to_dict() or {}
+        if not _is_business_restaurant_user(user_data):
+            continue
+
+        restaurant_profile = _build_restaurant_profile(user_doc)
+        if not _restaurant_matches_destination(restaurant_profile, destination):
+            continue
+
+        if cuisine:
+            profile_cuisine = _normalize_text(restaurant_profile.get("cuisine"))
+            if _normalize_text(cuisine) not in profile_cuisine:
+                continue
+
+        # Get a count/summary of menu items, maybe minimum price
+        menu_items = []
+        for menu_doc in db.collection("users").document(user_doc.id).collection("menu_items").stream():
+            item = menu_doc.to_dict() or {}
+            if item.get("is_available") is False:
+                continue
+            menu_items.append(item)
+
+        total_menu_items = len(menu_items)
+        prices = [_to_float(i.get("price")) for i in menu_items if _to_float(i.get("price")) > 0]
+        min_price = min(prices) if prices else 0
+        max_price_value = max(prices) if prices else 0
+
+        restaurants.append(
+            {
+                **restaurant_profile,
+                "total_menu_items": total_menu_items,
+                "price_range": {"min": int(round(min_price)), "max": int(round(max_price_value))},
+                "star_rating": 0,
+            }
+        )
+
+    restaurants = _sort_restaurants(restaurants, sort_by)
+    cache_set(cache_key, restaurants, ttl=180)
+    return success_response(restaurants)
+
+
+@search_bp.route("/restaurants/<restaurant_uid>/menu", methods=["GET"])
+def get_restaurant_menu(restaurant_uid):
+    """Get a restaurant profile and its active menu items."""
+    cache_key = f"restaurant_menu:{restaurant_uid}"
+    cached = cache_get(cache_key)
+    if cached is not None:
+        return success_response(cached)
+
+    db = get_firestore_client()
+    user_doc = db.collection("users").document(restaurant_uid).get()
+    if not user_doc.exists:
+        return error_response("NOT_FOUND", "Restaurant not found.", 404)
+
+    user_data = user_doc.to_dict() or {}
+    if not _is_business_restaurant_user(user_data):
+        return error_response("NOT_FOUND", "Restaurant not found.", 404)
+
+    restaurant_profile = _build_restaurant_profile(user_doc)
+
+    menu_items = []
+    prices = []
+    categories = set()
+    for menu_doc in db.collection("users").document(restaurant_uid).collection("menu_items").stream():
+        item = menu_doc.to_dict() or {}
+        if item.get("is_available") is False: # we can filter available or unavailable here
+             continue
+        item["id"] = menu_doc.id
+        menu_items.append(item)
+        if item.get("price", 0) > 0:
+            prices.append(item.get("price"))
+        if item.get("category"):
+            categories.add(item.get("category").strip())
+
+    menu_items.sort(key=lambda item: _normalize_text(item.get("name")))
+
+    min_price = int(round(min(prices))) if prices else 0
+    max_price_value = int(round(max(prices))) if prices else 0
+
+    payload = {
+        "restaurant": {
+            **restaurant_profile,
+            "total_menu_items": len(menu_items),
+            "price_range": {"min": min_price, "max": max_price_value},
+            "star_rating": 0,
+            "categories": sorted(list(categories)),
+        },
+        "menu_items": menu_items,
+    }
+
+    cache_set(cache_key, payload, ttl=120)
+    return success_response(payload)

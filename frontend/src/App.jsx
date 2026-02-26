@@ -25,6 +25,8 @@ import HotelSearch from './pages/traveler/HotelSearch';
 import ItineraryDetail from './pages/traveler/ItineraryDetail';
 import MyBookings from './pages/traveler/MyBookings';
 import MyTrips from './pages/traveler/MyTrips';
+import RestaurantSearch from './pages/traveler/RestaurantSearch';
+import RestaurantDetail from './pages/traveler/RestaurantDetail';
 import TravelerProfile from './pages/traveler/Profile';
 import TourSearch from './pages/traveler/TourSearch';
 import AITripPlanner from './pages/traveler/AITripPlanner';
@@ -80,6 +82,8 @@ function App() {
               <Route path="/traveler/itineraries/:id" element={<ItineraryDetail />} />
               <Route path="/traveler/hotels" element={<HotelSearch />} />
               <Route path="/traveler/hotels/:id" element={<HotelDetail />} />
+              <Route path="/traveler/restaurants" element={<RestaurantSearch />} />
+              <Route path="/traveler/restaurants/:id" element={<RestaurantDetail />} />
               <Route path="/traveler/bookings" element={<MyBookings />} />
               <Route path="/traveler/search" element={<HotelSearch />} />
               <Route path="/traveler/search/hotels" element={<HotelSearch />} />
