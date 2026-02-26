@@ -39,11 +39,13 @@ const roleNavigation = {
     { name: 'Room Management', href: '/business/rooms', icon: Building2, hotelOnly: true },
     { name: 'Menu', href: '/business/menu', icon: UtensilsCrossed, restaurantOnly: true },
     { name: 'Manage Services', href: '/business/services', icon: MapPin, guideOnly: true },
+    { name: 'Bookings', href: '/business/bookings', icon: Calendar, guideOnly: true },
     { name: 'Rides', href: '/business/rides', icon: Car, cabOnly: true },
     { name: 'Ratings', href: '/business/ratings', icon: Star, cabOnly: true },
   ],
   HOTEL_ADMIN: [
     { name: 'Dashboard', href: '/hotel/dashboard', icon: LayoutDashboard },
+    { name: 'Bookings', href: '/hotel/bookings', icon: Calendar },
     { name: 'Room Management', href: '/hotel/rooms', icon: Building2 },
   ],
   TOUR_OPERATOR: [

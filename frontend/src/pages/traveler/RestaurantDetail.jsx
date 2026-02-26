@@ -196,9 +196,8 @@ export default function RestaurantDetail() {
                             <MenuItemCard
                                 key={item.id}
                                 item={item}
-                                // Overriding the default business card look to remove edit/delete
-                                onEdit={() => { }}
-                                onDelete={() => { }}
+                                variant="traveler"
+                                showActions={false}
                             />
                         ))}
                     </div>

@@ -11,8 +11,19 @@ import { motion } from "motion/react";
 import Button from "../ui/Button";
 import Card from "../ui/Card";
 
-export default function MenuItemCard({ item, onEdit, onDelete }) {
+export default function MenuItemCard({
+  item,
+  onEdit,
+  onDelete,
+  showActions = true,
+  variant = "owner",
+}) {
   const image = item.cover_image || item.images?.[0];
+  const canManage =
+    showActions &&
+    variant !== "traveler" &&
+    typeof onEdit === "function" &&
+    typeof onDelete === "function";
 
   return (
     <motion.div
@@ -20,8 +31,8 @@ export default function MenuItemCard({ item, onEdit, onDelete }) {
       transition={{ duration: 0.2 }}
       className="h-full"
     >
-      <Card className="space-y-3 h-full flex flex-col">
-        <div className="flex items-start justify-between gap-3">
+      <Card className="space-y-3 h-full flex flex-col border-border/80 shadow-sm">
+        <div className="flex items-start justify-between gap-3 pb-1">
           <div className="flex items-start gap-2.5">
             <span
               className={`mt-0.5 shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-full ${
@@ -38,13 +49,13 @@ export default function MenuItemCard({ item, onEdit, onDelete }) {
             </span>
             <div>
               <h3 className="text-label-lg text-ink">{item.name}</h3>
-              <p className="text-[13px] text-text-secondary mt-0.5">
+              <p className="text-[13px] text-text-secondary mt-0.5 line-clamp-2">
                 {item.description || "No description provided."}
               </p>
             </div>
           </div>
-          <div className="text-right shrink-0">
-            <p className="text-[16px] font-semibold text-ink flex items-center gap-0.5 justify-end">
+          <div className="text-right shrink-0 rounded-xl bg-surface-sunken px-2.5 py-1.5 border border-border">
+            <p className="text-[16px] font-semibold text-ink flex items-center gap-0.5 justify-end leading-none">
               <IndianRupee className="h-3.5 w-3.5" />
               {Number(item.price || 0).toLocaleString()}
             </p>
@@ -52,11 +63,14 @@ export default function MenuItemCard({ item, onEdit, onDelete }) {
         </div>
 
         {image && (
-          <img
-            src={image}
-            alt={item.name}
-            className="h-36 w-full object-cover rounded-lg border border-border"
-          />
+          <div className="relative overflow-hidden rounded-xl border border-border">
+            <img
+              src={image}
+              alt={item.name}
+              className="h-44 w-full object-cover"
+            />
+            <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/35 to-transparent pointer-events-none" />
+          </div>
         )}
 
         {item.images?.length > 1 && (
@@ -100,22 +114,24 @@ export default function MenuItemCard({ item, onEdit, onDelete }) {
           )}
         </div>
 
-        <div className="flex items-center gap-2 pt-1 mt-auto">
-          <Button
-            variant="secondary"
-            icon={Pencil}
-            onClick={() => onEdit(item)}
-          >
-            Edit
-          </Button>
-          <Button
-            variant="danger"
-            icon={Trash2}
-            onClick={() => onDelete(item.id)}
-          >
-            Delete
-          </Button>
-        </div>
+        {canManage && (
+          <div className="flex items-center gap-2 pt-1 mt-auto">
+            <Button
+              variant="secondary"
+              icon={Pencil}
+              onClick={() => onEdit(item)}
+            >
+              Edit
+            </Button>
+            <Button
+              variant="danger"
+              icon={Trash2}
+              onClick={() => onDelete(item.id)}
+            >
+              Delete
+            </Button>
+          </div>
+        )}
       </Card>
     </motion.div>
   );

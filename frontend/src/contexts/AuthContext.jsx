@@ -90,6 +90,8 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const cred = await signInWithEmailAndPassword(auth, email, password);
+    await cred.user.getIdToken(true);
+    await refreshUserProfile(cred.user);
     return cred.user;
   };
 

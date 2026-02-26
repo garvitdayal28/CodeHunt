@@ -873,6 +873,46 @@ def get_guide_services():
     return success_response(items)
 
 
+@business_bp.route("/guide/bookings", methods=["GET"])
+@require_auth
+@require_role(BUSINESS_ROLE)
+def get_guide_bookings():
+    """List activity bookings for a TOURIST_GUIDE_SERVICE business account."""
+    db = get_firestore_client()
+    uid = g.current_user["uid"]
+    user_data = _require_guide_business_user(db, uid)
+    if not user_data:
+        return error_response("INVALID_ROLE", "Only TOURIST_GUIDE_SERVICE accounts can access bookings.", 403)
+
+    status_filter = str(request.args.get("status") or "").strip().upper()
+
+    bookings = []
+    # Avoid composite index requirement by scanning itinerary subcollections.
+    for itinerary_doc in db.collection("itineraries").stream():
+        itinerary_id = itinerary_doc.id
+        for activity_doc in db.collection("itineraries").document(itinerary_id).collection("activities").stream():
+            activity = activity_doc.to_dict() or {}
+            if str(activity.get("source") or "").upper() != "GUIDE_SERVICE":
+                continue
+            if str(activity.get("guide_owner_uid") or "").strip() != uid:
+                continue
+            if status_filter and str(activity.get("status") or "").upper() != status_filter:
+                continue
+
+            activity["id"] = activity_doc.id
+            activity["itinerary_id"] = itinerary_id
+            bookings.append(activity)
+
+    bookings.sort(
+        key=lambda item: (
+            item.get("scheduled_time") or "",
+            item.get("created_at") or "",
+        ),
+        reverse=True,
+    )
+    return success_response(bookings)
+
+
 @business_bp.route("/guide/services", methods=["POST"])
 @require_auth
 @require_role(BUSINESS_ROLE)

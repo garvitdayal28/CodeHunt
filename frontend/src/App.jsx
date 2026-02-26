@@ -11,10 +11,12 @@ import PlatformDisruptions from './pages/admin/Disruptions';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import BusinessDashboard from './pages/business/Dashboard';
+import GuideBookings from './pages/business/GuideBookings';
 import GuideServicesManagement from './pages/business/GuideServicesManagement';
 import MenuManagement from './pages/business/MenuManagement';
 import BusinessRides from './pages/business/Rides';
 import BusinessRatings from './pages/business/Ratings';
+import HotelBookings from './pages/hotel/Bookings';
 import HotelDashboard from './pages/hotel/Dashboard';
 import RoomManagement from './pages/hotel/RoomManagement';
 import BookingConfirmation from './pages/traveler/BookingConfirmation';
@@ -102,12 +104,14 @@ function App() {
                 <Route path="/business/rooms" element={<RoomManagement />} />
                 <Route path="/business/menu" element={<MenuManagement />} />
                 <Route path="/business/services" element={<GuideServicesManagement />} />
+                <Route path="/business/bookings" element={<GuideBookings />} />
                 <Route path="/business/rides" element={<BusinessRides />} />
                 <Route path="/business/ratings" element={<BusinessRatings />} />
               </Route>
 
               <Route element={<ProtectedRoute allowedRoles={['HOTEL_ADMIN', 'PLATFORM_ADMIN']} />}>
                 <Route path="/hotel/dashboard" element={<HotelDashboard />} />
+                <Route path="/hotel/bookings" element={<HotelBookings />} />
                 <Route path="/hotel/rooms" element={<RoomManagement />} />
               </Route>
 
