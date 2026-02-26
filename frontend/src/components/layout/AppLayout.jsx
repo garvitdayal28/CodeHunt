@@ -88,12 +88,12 @@ export default function AppLayout() {
     <div className="min-h-screen bg-white flex flex-col">
       <header className="sticky top-0 z-50 bg-white border-b border-border shadow-nav">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center h-14">
-          <Link to="/" className="flex items-center gap-2 mr-8 shrink-0">
+          <Link to="/" className="flex items-center gap-2 mr-4 shrink-0">
             <img src="/Logo-removedbg.png" alt="TripAllied" className="h-8 w-8 object-contain" />
             <span className="text-[17px] font-semibold text-ink tracking-tight">TripAllied</span>
           </Link>
 
-          <nav className="flex items-center gap-1 flex-1">
+          <nav className="flex items-center gap-0.5 flex-1 overflow-x-auto no-scrollbar">
             {navigation.map((item) => {
               const isActive = [item.href, ...(item.aliases || [])].some((path) => location.pathname.startsWith(path));
               return (
@@ -101,7 +101,7 @@ export default function AppLayout() {
                   key={`${item.name}-${item.href}`}
                   to={item.href}
                   className={`
-                    flex items-center gap-1.5 px-3 py-1.5 rounded-lg
+                    flex items-center gap-1.5 px-2 py-1.5 rounded-lg
                     text-[13px] font-medium transition-colors duration-100
                     ${isActive
                       ? 'bg-primary-soft text-primary'
@@ -119,24 +119,28 @@ export default function AppLayout() {
           <div className="relative ml-4">
             <button
               onClick={() => setUserMenuOpen((prev) => !prev)}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-sunken transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-full border border-border hover:bg-surface-sunken transition-colors cursor-pointer"
             >
-              <div className="h-7 w-7 rounded-full bg-gradient-accent flex items-center justify-center text-[11px] font-semibold text-white">
+              <div className="h-7 w-7 rounded-full bg-linear-to-tr from-primary to-accent flex items-center justify-center text-[11px] font-semibold text-white shadow-sm ring-1 ring-white/20">
                 {currentUser?.email?.[0]?.toUpperCase() || '?'}
               </div>
-              <span className="text-[13px] font-medium text-ink hidden sm:block">
-                {currentUser?.displayName || currentUser?.email?.split('@')[0]}
-              </span>
-              <ChevronDown className="h-3.5 w-3.5 text-text-muted" strokeWidth={2} />
+              <ChevronDown className="h-3.5 w-3.5 text-text-muted mr-1" strokeWidth={2} />
             </button>
 
             {userMenuOpen && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setUserMenuOpen(false)} />
                 <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl border border-border shadow-lg z-20 py-1 animate-slide-in">
-                  <div className="px-3 py-2 border-b border-border">
-                    <p className="text-[13px] font-medium text-ink truncate">{currentUser?.email}</p>
-                    <p className="text-[11px] text-text-muted">{userRole?.replace(/_/g, ' ')}</p>
+                  <div className="px-3 py-2 border-b border-border bg-surface-sunken/30">
+                    <p className="text-[12px] font-semibold text-ink truncate">
+                      {currentUser?.displayName || currentUser?.email?.split('@')[0]}
+                    </p>
+                    <p className="text-[11px] text-text-secondary truncate">{currentUser?.email}</p>
+                    <div className="mt-1 flex items-center gap-1">
+                      <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary text-[9px] font-bold tracking-wider uppercase">
+                        {userRole?.replace(/_/g, ' ')}
+                      </span>
+                    </div>
                   </div>
                   <button
                     onClick={handleLogout}
