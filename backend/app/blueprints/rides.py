@@ -21,6 +21,14 @@ from app.utils.rides import (
 rides_bp = Blueprint("rides", __name__, url_prefix="/api/rides")
 
 
+def _sanitize_ride_for_driver(ride):
+    if not isinstance(ride, dict):
+        return ride
+    sanitized = dict(ride)
+    sanitized.pop("start_otp", None)
+    return sanitized
+
+
 def _require_cab_driver(uid):
     db = get_firestore_client()
     user_doc = db.collection("users").document(uid).get()
@@ -68,7 +76,7 @@ def driver_rides():
     rides = []
     query = db.collection("rides").where("driver_uid", "==", uid)
     for doc in query.stream():
-        rides.append(serialize_doc(doc))
+        rides.append(_sanitize_ride_for_driver(serialize_doc(doc)))
 
     rides.sort(key=lambda r: r.get("created_at", ""), reverse=True)
     return success_response(rides)
@@ -148,6 +156,7 @@ def get_ride(ride_id):
             return error_response("FORBIDDEN", "Only CAB_DRIVER business users can access rides.", 403)
         if ride.get("driver_uid") != uid:
             return error_response("FORBIDDEN", "You do not have access to this ride.", 403)
+        ride = _sanitize_ride_for_driver(ride)
     if role not in {"TRAVELER", "BUSINESS", "PLATFORM_ADMIN"}:
         return error_response("FORBIDDEN", "You do not have access to this ride.", 403)
 

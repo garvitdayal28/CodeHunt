@@ -4,6 +4,7 @@ import { Building2, Edit3, MapPin, Save, Star, Wallet } from 'lucide-react';
 import api from '../../api/axios';
 import HotelEditableCard from '../../components/hotel/HotelEditableCard';
 import HotelInfoCard from '../../components/hotel/HotelInfoCard';
+import ImageUploadInput from '../../components/hotel/ImageUploadInput';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 
@@ -17,6 +18,7 @@ function toFormState(profile) {
     rating: profile?.rating?.toString() || '',
     total_rooms: profile?.total_rooms?.toString() || '',
     amenities: (profile?.amenities || []).join(', '),
+    image_urls: profile?.image_urls || [],
   };
 }
 
@@ -85,6 +87,13 @@ export default function HotelDashboard() {
         { label: 'Available', value: (profile?.amenities || []).join(', ') || '-' },
       ],
     },
+    {
+      title: 'Gallery',
+      icon: Star,
+      fields: [
+        { label: 'Hotel Images', value: `${(profile?.image_urls || []).length} uploaded` },
+      ],
+    },
   ]), [profile]);
 
   const handleSave = async () => {
@@ -102,6 +111,7 @@ export default function HotelDashboard() {
         rating: form.rating,
         total_rooms: form.total_rooms,
         amenities: form.amenities,
+        image_urls: form.image_urls,
       };
 
       const res = await api.put('/admin/hotel/profile', payload);
@@ -173,11 +183,23 @@ export default function HotelDashboard() {
       )}
 
       {!editing ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {cards.map((card) => (
-            <HotelInfoCard key={card.title} title={card.title} icon={card.icon} fields={card.fields} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {cards.map((card) => (
+              <HotelInfoCard key={card.title} title={card.title} icon={card.icon} fields={card.fields} />
+            ))}
+          </div>
+          {(profile?.image_urls || []).length > 0 && (
+            <div className="rounded-xl border border-border bg-white p-5">
+              <h3 className="text-label-lg text-ink mb-3">Hotel Gallery</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {(profile?.image_urls || []).map((url) => (
+                  <img key={url} src={url} alt="Hotel" className="h-28 w-full object-cover rounded-lg border border-border" />
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <HotelEditableCard title="Property" icon={Building2}>
@@ -254,6 +276,16 @@ export default function HotelDashboard() {
               value={form.amenities}
               onChange={(e) => updateField('amenities', e.target.value)}
               placeholder="Wifi, Pool, Parking"
+            />
+          </HotelEditableCard>
+
+          <HotelEditableCard title="Gallery" icon={Star}>
+            <ImageUploadInput
+              label="Hotel Images"
+              images={form.image_urls || []}
+              onChange={(imgs) => updateField('image_urls', imgs)}
+              folder={profile?.id ? `tripallied/properties/${profile.id}/hotel` : 'tripallied/hotel'}
+              maxFiles={20}
             />
           </HotelEditableCard>
         </div>

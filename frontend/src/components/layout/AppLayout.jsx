@@ -31,14 +31,13 @@ const roleNavigation = {
   ],
   BUSINESS: [
     { name: 'Dashboard', href: '/business/dashboard', icon: LayoutDashboard },
+    { name: 'Room Management', href: '/business/rooms', icon: Building2, hotelOnly: true },
     { name: 'Rides', href: '/business/rides', icon: Car, cabOnly: true },
     { name: 'Ratings', href: '/business/ratings', icon: Star, cabOnly: true },
   ],
   HOTEL_ADMIN: [
     { name: 'Dashboard', href: '/hotel/dashboard', icon: LayoutDashboard },
-    { name: 'Bookings', href: '/hotel/bookings', icon: Ticket },
-    { name: 'Rooms', href: '/hotel/inventory', icon: Building2 },
-    { name: 'Alerts', href: '/hotel/alerts', icon: Bell },
+    { name: 'Room Management', href: '/hotel/rooms', icon: Building2 },
   ],
   TOUR_OPERATOR: [
     { name: 'Dashboard', href: '/operator/dashboard', icon: LayoutDashboard },
@@ -59,8 +58,9 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const navigation = (roleNavigation[userRole] || []).filter((item) => {
-    if (!item.cabOnly) return true;
-    return userRole === 'BUSINESS' && businessType === 'CAB_DRIVER';
+    if (item.cabOnly) return userRole === 'BUSINESS' && businessType === 'CAB_DRIVER';
+    if (item.hotelOnly) return userRole === 'BUSINESS' && businessType === 'HOTEL';
+    return true;
   });
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 

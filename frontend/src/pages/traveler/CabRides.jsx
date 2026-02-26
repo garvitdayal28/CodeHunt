@@ -38,6 +38,8 @@ export default function CabRides() {
   const [showRating, setShowRating] = useState(false);
   const [quoteModalOpen, setQuoteModalOpen] = useState(false);
   const [endRideConfirmOpen, setEndRideConfirmOpen] = useState(false);
+  const [otpModalOpen, setOtpModalOpen] = useState(false);
+  const [tripOtp, setTripOtp] = useState('');
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
   const [requestPending, setRequestPending] = useState(false);
@@ -192,7 +194,16 @@ export default function CabRides() {
       if (ride.status === 'COMPLETED') {
         setShowRating(true);
         setQuoteModalOpen(false);
+        setTripOtp('');
         play('success');
+      }
+      if (ride.status === 'QUOTE_ACCEPTED' && ride.start_otp) {
+        setTripOtp(String(ride.start_otp));
+        setOtpModalOpen(true);
+      }
+      if (ride.status === 'IN_PROGRESS') {
+        setTripOtp('');
+        setOtpModalOpen(false);
       }
     };
     const onQuote = (payload) => {
@@ -222,6 +233,14 @@ export default function CabRides() {
       setError(payload?.message || 'Ride operation failed.');
       play('warning');
     };
+    const onOtpGenerated = (payload) => {
+      const otp = String(payload?.otp || '');
+      if (!otp) return;
+      setTripOtp(otp);
+      setOtpModalOpen(true);
+      setFeedback('Your trip OTP is ready. Share it with driver at pickup.');
+      play('incoming');
+    };
 
     socket.on('rides:nearby_drivers', onNearbyDrivers);
     socket.on('rides:online_count', onOnlineCount);
@@ -233,6 +252,7 @@ export default function CabRides() {
     socket.on('ride:eta_updated', onEta);
     socket.on('ride:error', onError);
     socket.on('ride:completed', onStatus);
+    socket.on('ride:otp_generated', onOtpGenerated);
 
     return () => {
       socket.off('rides:nearby_drivers', onNearbyDrivers);
@@ -245,6 +265,7 @@ export default function CabRides() {
       socket.off('ride:eta_updated', onEta);
       socket.off('ride:error', onError);
       socket.off('ride:completed', onStatus);
+      socket.off('ride:otp_generated', onOtpGenerated);
     };
   }, [socket, activeRide, play]);
 
@@ -434,12 +455,23 @@ export default function CabRides() {
     }
   };
 
+  const copyOtp = async () => {
+    if (!tripOtp) return;
+    try {
+      await navigator.clipboard.writeText(tripOtp);
+      setFeedback('Trip OTP copied. Share this with your driver at pickup.');
+      play('success');
+    } catch {
+      setFeedback('Trip OTP: ' + tripOtp);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-display-md text-ink">Cab</h1>
+        <h1 className="text-display-md text-ink">Book A Cab</h1>
         <p className="text-body-sm text-text-secondary mt-1">
-          Request rides from online cab drivers and track them in realtime.
+          Find nearby drivers, approve fare, share OTP at pickup, and track trip live.
         </p>
       </div>
 
@@ -616,6 +648,21 @@ export default function CabRides() {
         </Card>
       )}
 
+      {tripOtp && activeRide && ['QUOTE_ACCEPTED', 'DRIVER_EN_ROUTE'].includes(activeRide.status) && (
+        <Card className="border border-blue/30 bg-blue/5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h3 className="text-label-lg text-ink">Pickup OTP</h3>
+              <p className="text-[13px] text-text-secondary mt-1">
+                Share this OTP with driver at pickup to start your trip.
+              </p>
+              <p className="text-[26px] tracking-[0.3em] font-semibold text-blue mt-2">{tripOtp}</p>
+            </div>
+            <Button variant="secondary" onClick={copyOtp}>Copy OTP</Button>
+          </div>
+        </Card>
+      )}
+
       <RideStatusCard ride={activeRide} />
 
       {activeRide && (
@@ -638,7 +685,7 @@ export default function CabRides() {
       <Modal
         open={quoteModalOpen && activeRide?.status === 'QUOTE_SENT'}
         onClose={() => setQuoteModalOpen(false)}
-        title="Quote Received"
+        title="Fare Quote Received"
         footer={(
           <div className="flex items-center justify-end gap-2">
             <Button variant="secondary" onClick={handleRejectQuote}>Reject</Button>
@@ -656,7 +703,7 @@ export default function CabRides() {
 
       <ConfirmModal
         open={endRideConfirmOpen}
-        title="End Ride"
+        title="Confirm Ride Completion"
         message="Confirm that you have reached destination and want to end this ride."
         onCancel={() => setEndRideConfirmOpen(false)}
         onConfirm={handleEndRide}
@@ -667,7 +714,7 @@ export default function CabRides() {
       <Modal
         open={showRating}
         onClose={() => setShowRating(false)}
-        title="Rate Driver (Optional)"
+        title="Rate Your Driver (Optional)"
         footer={(
           <div className="flex items-center justify-end gap-2">
             <Button variant="secondary" onClick={() => setShowRating(false)}>Skip</Button>
@@ -688,6 +735,21 @@ export default function CabRides() {
           value={ratingMessage}
           onChange={(e) => setRatingMessage(e.target.value)}
         />
+      </Modal>
+
+      <Modal
+        open={otpModalOpen && !!tripOtp}
+        onClose={() => setOtpModalOpen(false)}
+        title="Your Pickup OTP"
+        footer={(
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="secondary" onClick={() => setOtpModalOpen(false)}>Close</Button>
+            <Button onClick={copyOtp}>Copy OTP</Button>
+          </div>
+        )}
+      >
+        <p className="text-[13px] text-text-secondary">Share this OTP with driver at pickup to start your trip.</p>
+        <p className="text-[30px] tracking-[0.32em] font-semibold text-blue mt-3">{tripOtp || '----'}</p>
       </Modal>
     </div>
   );

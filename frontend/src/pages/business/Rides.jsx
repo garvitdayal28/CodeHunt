@@ -45,6 +45,8 @@ export default function BusinessRides() {
   const [rideCompletedModalOpen, setRideCompletedModalOpen] = useState(false);
   const [ratingModalOpen, setRatingModalOpen] = useState(false);
   const [latestRating, setLatestRating] = useState(null);
+  const [startRideModalOpen, setStartRideModalOpen] = useState(false);
+  const [startRideOtp, setStartRideOtp] = useState('');
   const watchIdRef = useRef(null);
   const { play } = useNotificationSound();
 
@@ -99,6 +101,10 @@ export default function BusinessRides() {
         if (ride.status === 'ACCEPTED_PENDING_QUOTE' && quotePromptedRideId !== ride.id) {
           setQuotePromptedRideId(ride.id);
           setQuoteModalOpen(true);
+        }
+        if (ride.status === 'IN_PROGRESS') {
+          setStartRideModalOpen(false);
+          setStartRideOtp('');
         }
       } else if (currentRide?.id === ride.id) {
         setCurrentRide(null);
@@ -250,10 +256,16 @@ export default function BusinessRides() {
 
   const handleStartRide = () => {
     if (!currentRide) return;
+    if (!startRideOtp.trim()) {
+      setError('Enter OTP shared by traveler to start ride.');
+      return;
+    }
     setError('');
     setSuccess('');
-    emitEvent('driver:start_ride', { ride_id: currentRide.id });
+    emitEvent('driver:start_ride', { ride_id: currentRide.id, otp: startRideOtp.trim() });
     setQuoteAcceptedModalOpen(false);
+    setStartRideModalOpen(false);
+    setStartRideOtp('');
   };
 
   const incomingRequests = useMemo(
@@ -275,9 +287,9 @@ export default function BusinessRides() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-display-md text-ink">Rides</h1>
+        <h1 className="text-display-md text-ink">Cab Operations</h1>
         <p className="text-body-sm text-text-secondary mt-1">
-          Manage incoming ride requests, quotes, and live tracking.
+          Review incoming requests, share fare quotes, verify OTP at pickup, and run live trips.
         </p>
       </div>
 
@@ -329,7 +341,7 @@ export default function BusinessRides() {
       </div>
 
       <Card>
-        <h3 className="text-label-lg text-ink mb-3">Incoming Requests</h3>
+        <h3 className="text-label-lg text-ink mb-3">Incoming Ride Requests</h3>
         {incomingRequests.length === 0 ? (
           <p className="text-[13px] text-text-secondary">No incoming requests right now.</p>
         ) : (
@@ -352,8 +364,8 @@ export default function BusinessRides() {
 
       {currentRide?.status === 'ACCEPTED_PENDING_QUOTE' && (
         <Card>
-          <h3 className="text-label-lg text-ink mb-2">Quote Pending</h3>
-          <p className="text-[13px] text-text-secondary">Submit a quote to continue this ride.</p>
+          <h3 className="text-label-lg text-ink mb-2">Send Fare Quote</h3>
+          <p className="text-[13px] text-text-secondary">Share your fare offer to proceed with this booking.</p>
           <div className="mt-3">
             <Button icon={Send} onClick={() => setQuoteModalOpen(true)}>Open Quote Modal</Button>
           </div>
@@ -366,8 +378,9 @@ export default function BusinessRides() {
 
       {currentRide && ['QUOTE_ACCEPTED', 'DRIVER_EN_ROUTE'].includes(currentRide.status) && (
         <Card>
-          <h3 className="text-label-lg text-ink mb-2">Ready to start trip?</h3>
-          <Button icon={Navigation} onClick={handleStartRide}>Start Ride</Button>
+          <h3 className="text-label-lg text-ink mb-2">Verify OTP And Start Trip</h3>
+          <p className="text-[13px] text-text-secondary mb-3">Ask traveler for OTP at pickup before starting the trip.</p>
+          <Button icon={Navigation} onClick={() => setStartRideModalOpen(true)}>Verify OTP</Button>
         </Card>
       )}
 
@@ -419,15 +432,23 @@ export default function BusinessRides() {
       <Modal
         open={quoteAcceptedModalOpen}
         onClose={() => setQuoteAcceptedModalOpen(false)}
-        title="Quote Accepted"
+        title="Quote Accepted By Traveler"
         footer={(
           <div className="flex items-center justify-end gap-2">
             <Button variant="secondary" onClick={() => setQuoteAcceptedModalOpen(false)}>Later</Button>
-            <Button icon={Navigation} onClick={handleStartRide}>Start Ride</Button>
+            <Button
+              icon={Navigation}
+              onClick={() => {
+                setQuoteAcceptedModalOpen(false);
+                setStartRideModalOpen(true);
+              }}
+            >
+              Verify OTP
+            </Button>
           </div>
         )}
       >
-        <p className="text-[14px] text-text-secondary">Traveler accepted your quote. Start ride when ready.</p>
+        <p className="text-[14px] text-text-secondary">Traveler accepted your quote. Verify pickup OTP and start trip when ready.</p>
       </Modal>
 
       <Modal
@@ -466,6 +487,31 @@ export default function BusinessRides() {
             <p className="text-[12px] text-text-secondary">Feedback</p>
             <p className="text-[14px] text-ink">{latestRating?.rating?.message || 'No text feedback.'}</p>
           </div>
+        </div>
+      </Modal>
+
+      <Modal
+        open={startRideModalOpen}
+        onClose={() => setStartRideModalOpen(false)}
+        title="Verify OTP To Start Ride"
+        footer={(
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="secondary" onClick={() => setStartRideModalOpen(false)}>Cancel</Button>
+            <Button icon={Navigation} onClick={handleStartRide}>Start Ride</Button>
+          </div>
+        )}
+      >
+        <div className="space-y-3">
+          <p className="text-[13px] text-text-secondary">
+            Ask traveler for their 4-digit trip OTP and enter it below.
+          </p>
+          <Input
+            label="Trip OTP"
+            value={startRideOtp}
+            onChange={(e) => setStartRideOtp(e.target.value.replace(/\D/g, '').slice(0, 4))}
+            placeholder="Enter 4-digit OTP"
+            maxLength={4}
+          />
         </div>
       </Modal>
     </div>

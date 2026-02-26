@@ -13,6 +13,7 @@ import BusinessDashboard from './pages/business/Dashboard';
 import BusinessRides from './pages/business/Rides';
 import BusinessRatings from './pages/business/Ratings';
 import HotelDashboard from './pages/hotel/Dashboard';
+import RoomManagement from './pages/hotel/RoomManagement';
 import BookingConfirmation from './pages/traveler/BookingConfirmation';
 import CabRides from './pages/traveler/CabRides';
 import CreateItinerary from './pages/traveler/CreateItinerary';
@@ -86,12 +87,14 @@ function App() {
 
             <Route element={<ProtectedRoute allowedRoles={['BUSINESS']} />}>
               <Route path="/business/dashboard" element={<BusinessDashboard />} />
+              <Route path="/business/rooms" element={<RoomManagement />} />
               <Route path="/business/rides" element={<BusinessRides />} />
               <Route path="/business/ratings" element={<BusinessRatings />} />
             </Route>
 
             <Route element={<ProtectedRoute allowedRoles={['HOTEL_ADMIN', 'PLATFORM_ADMIN']} />}>
               <Route path="/hotel/dashboard" element={<HotelDashboard />} />
+              <Route path="/hotel/rooms" element={<RoomManagement />} />
             </Route>
 
             <Route element={<ProtectedRoute allowedRoles={['TOUR_OPERATOR', 'PLATFORM_ADMIN']} />}>

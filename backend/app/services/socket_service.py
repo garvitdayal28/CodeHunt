@@ -3,6 +3,7 @@ Socket.IO service for realtime cab rides.
 """
 
 import threading
+import random
 
 from firebase_admin import firestore
 from flask import request
@@ -58,13 +59,23 @@ def _emit_to_user(uid, event, payload):
     socketio.emit(event, payload, room=f"user:{uid}", namespace="/rides")
 
 
+def _sanitize_ride_for_driver(ride):
+    if not isinstance(ride, dict):
+        return ride
+    sanitized = dict(ride)
+    sanitized.pop("start_otp", None)
+    return sanitized
+
+
 def _emit_status(ride):
-    payload = {"ride": ride}
+    traveler_payload = {"ride": ride}
+    driver_payload = {"ride": _sanitize_ride_for_driver(ride)}
+    public_payload = {"ride": _sanitize_ride_for_driver(ride)}
     if ride.get("traveler_uid"):
-        _emit_to_user(ride["traveler_uid"], "ride:status_changed", payload)
+        _emit_to_user(ride["traveler_uid"], "ride:status_changed", traveler_payload)
     if ride.get("driver_uid"):
-        _emit_to_user(ride["driver_uid"], "ride:status_changed", payload)
-    socketio.emit("ride:status_changed", payload, room=f"ride:{ride['id']}", namespace="/rides")
+        _emit_to_user(ride["driver_uid"], "ride:status_changed", driver_payload)
+    socketio.emit("ride:status_changed", public_payload, room=f"ride:{ride['id']}", namespace="/rides")
 
 
 def _emit_location_and_eta(ride):
@@ -210,6 +221,9 @@ def _create_ride_from_request(uid, source, destination):
         "accepted_at": None,
         "started_at": None,
         "completed_at": None,
+        "start_otp": None,
+        "start_otp_created_at": None,
+        "start_otp_verified_at": None,
         "rating": {},
     }
 
@@ -242,6 +256,7 @@ def _end_ride_internal(ride_id, traveler_uid):
         {
             "status": RIDE_STATUS_COMPLETED,
             "completed_at": utcnow_iso(),
+            "start_otp": None,
             "updated_at": utcnow_iso(),
         }
     )
@@ -768,12 +783,25 @@ def init_socketio(app):
                 _emit_error("Quote is not in an acceptable state.", "INVALID_STATE", request.sid)
                 return
 
-            ride_ref.update({"status": RIDE_STATUS_QUOTE_ACCEPTED, "updated_at": utcnow_iso()})
+            start_otp = f"{random.randint(1000, 9999)}"
+            ride_ref.update(
+                {
+                    "status": RIDE_STATUS_QUOTE_ACCEPTED,
+                    "start_otp": start_otp,
+                    "start_otp_created_at": utcnow_iso(),
+                    "updated_at": utcnow_iso(),
+                }
+            )
             _cancel_timer(_quote_timers, ride_id)
-            add_ride_event(db, ride_id, "QUOTE_ACCEPTED", ctx["uid"], {})
+            add_ride_event(db, ride_id, "QUOTE_ACCEPTED", ctx["uid"], {"start_otp_generated": True})
             updated = ride_ref.get().to_dict()
             updated["id"] = ride_id
-            _emit_to_user(updated["driver_uid"], "ride:quote_accepted", {"ride": updated})
+            _emit_to_user(
+                updated["traveler_uid"],
+                "ride:otp_generated",
+                {"ride_id": ride_id, "otp": start_otp},
+            )
+            _emit_to_user(updated["driver_uid"], "ride:quote_accepted", {"ride": _sanitize_ride_for_driver(updated)})
             _emit_status(updated)
 
         @socketio.on("traveler:reject_quote", namespace="/rides")
@@ -820,6 +848,10 @@ def init_socketio(app):
             if not ride_id:
                 _emit_error("ride_id is required.", "MISSING_FIELDS", request.sid)
                 return
+            submitted_otp = str((data or {}).get("otp") or "").strip()
+            if not submitted_otp:
+                _emit_error("OTP is required to start ride.", "OTP_REQUIRED", request.sid)
+                return
 
             db = get_firestore_client()
             ride_ref = db.collection("rides").document(ride_id)
@@ -836,11 +868,20 @@ def init_socketio(app):
             if status not in {RIDE_STATUS_QUOTE_ACCEPTED, RIDE_STATUS_DRIVER_EN_ROUTE}:
                 _emit_error("Ride cannot be started from current status.", "INVALID_STATE", request.sid)
                 return
+            expected_otp = str(ride.get("start_otp") or "").strip()
+            if not expected_otp:
+                _emit_error("Ride OTP is unavailable. Ask traveler to re-accept quote.", "OTP_NOT_AVAILABLE", request.sid)
+                return
+            if submitted_otp != expected_otp:
+                _emit_error("Incorrect OTP. Please verify with traveler.", "OTP_INVALID", request.sid)
+                return
 
             ride_ref.update(
                 {
                     "status": RIDE_STATUS_IN_PROGRESS,
                     "started_at": utcnow_iso(),
+                    "start_otp_verified_at": utcnow_iso(),
+                    "start_otp": None,
                     "updated_at": utcnow_iso(),
                 }
             )
