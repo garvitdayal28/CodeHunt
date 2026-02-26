@@ -9,7 +9,7 @@ __pycache__/
 *.pyo
 
 # Firebase
-serviceAccountKey.json
+backend/serviceAccount.json
 
 # Build output
 frontend/dist/
