@@ -32,7 +32,6 @@ const roleNavigation = {
     { name: 'My Bookings', href: '/traveler/bookings', icon: Calendar },
     { name: 'Cab', href: '/traveler/cabs', icon: Car },
     { name: 'AI Planner', href: '/traveler/ai-planner', icon: Sparkles },
-    { name: 'Profile', href: '/traveler/profile', icon: UserCircle2 },
   ],
   BUSINESS: [
     { name: 'Dashboard', href: '/business/dashboard', icon: LayoutDashboard },
@@ -142,13 +141,23 @@ export default function AppLayout() {
                       </span>
                     </div>
                   </div>
-                  <button
-                    onClick={handleLogout}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-[13px] font-medium text-text-secondary hover:text-ink hover:bg-surface-sunken transition-colors cursor-pointer"
-                  >
-                    <LogOut className="h-4 w-4" strokeWidth={1.75} />
-                    Sign out
-                  </button>
+                  <div className="py-1">
+                    <Link
+                      to={userRole === 'TRAVELER' ? '/traveler/profile' : '#'}
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 px-3 py-2 text-[13px] font-medium text-text-secondary hover:text-ink hover:bg-surface-sunken transition-colors"
+                    >
+                      <UserCircle2 className="h-4 w-4" strokeWidth={1.75} />
+                      My Profile
+                    </Link>
+                    <button
+                      onClick={handleLogout}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-[13px] font-medium text-text-secondary hover:text-ink hover:bg-surface-sunken transition-colors cursor-pointer"
+                    >
+                      <LogOut className="h-4 w-4" strokeWidth={1.75} />
+                      Sign out
+                    </button>
+                  </div>
                 </div>
               </>
             )}
