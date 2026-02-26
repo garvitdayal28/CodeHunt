@@ -28,6 +28,19 @@ def _require_hotel_business_user(db, uid):
     return user_data
 
 
+def _require_restaurant_business_user(db, uid):
+    user_doc = db.collection("users").document(uid).get()
+    if not user_doc.exists:
+        return None
+    user_data = user_doc.to_dict() or {}
+    if user_data.get("role") != BUSINESS_ROLE:
+        return None
+    business_profile = user_data.get("business_profile") or {}
+    if business_profile.get("business_type") != "RESTAURANT":
+        return None
+    return user_data
+
+
 def _to_string_list(value):
     if isinstance(value, str):
         return [item.strip() for item in value.split(",") if item.strip()]
@@ -243,6 +256,33 @@ def upload_hotel_business_image():
 
     return success_response(uploaded, 200, "Image uploaded successfully.")
 
+
+@business_bp.route("/restaurant/upload-image", methods=["POST"])
+@require_auth
+@require_role(BUSINESS_ROLE)
+def upload_restaurant_business_image():
+    """Upload a restaurant image for BUSINESS users with RESTAURANT subtype."""
+    db = get_firestore_client()
+    uid = g.current_user["uid"]
+    user_data = _require_restaurant_business_user(db, uid)
+    if not user_data:
+        return error_response("INVALID_ROLE", "Only RESTAURANT business accounts can upload restaurant images.", 403)
+
+    file_obj = request.files.get("file")
+    if not file_obj:
+        return error_response("MISSING_FILE", "file is required as multipart form-data.", 400)
+
+    folder = request.form.get("folder") or f"tripallied/business/{uid}/restaurant"
+    try:
+        uploaded = upload_image(file_obj, folder=folder)
+    except ValueError as e:
+        return error_response("UPLOAD_CONFIG_ERROR", str(e), 400)
+    except RuntimeError as e:
+        return error_response("UPLOAD_FAILED", str(e), 502)
+    except Exception as e:
+        return error_response("UPLOAD_FAILED", f"Unexpected upload error: {e}", 500)
+
+    return success_response(uploaded, 200, "Image uploaded successfully.")
 
 @business_bp.route("/hotel/rooms", methods=["GET"])
 @require_auth
