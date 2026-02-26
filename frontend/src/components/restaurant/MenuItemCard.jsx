@@ -7,86 +7,91 @@ export default function MenuItemCard({ item, onEdit, onDelete }) {
     const image = item.cover_image || item.images?.[0];
 
     return (
-        <Card className="space-y-3">
-            <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-2.5">
-                    <span
-                        className={`mt-0.5 shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-full ${item.is_veg ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
+        <Card className="flex flex-col h-full hover:shadow-md transition-shadow p-4 lg:p-5">
+            {/* Header: Identity & Price */}
+            <div className="flex justify-between items-start gap-3 mb-3">
+                <div className="flex gap-3">
+                    <div
+                        className={`mt-0.5 shrink-0 flex items-center justify-center h-8 w-8 rounded-full ${item.is_veg ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
                             }`}
                     >
                         {item.is_veg ? (
-                            <Leaf className="h-3.5 w-3.5" />
+                            <Leaf className="h-4 w-4" strokeWidth={2.5} />
                         ) : (
-                            <Drumstick className="h-3.5 w-3.5" />
+                            <Drumstick className="h-4 w-4" strokeWidth={2.5} />
                         )}
-                    </span>
+                    </div>
                     <div>
-                        <h3 className="text-label-lg text-ink">{item.name}</h3>
-                        <p className="text-[13px] text-text-secondary mt-0.5">
-                            {item.description || 'No description provided.'}
-                        </p>
+                        <h3 className="text-[16px] font-semibold text-ink leading-tight">{item.name}</h3>
+                        {item.description && (
+                            <p className="text-[13px] text-text-secondary mt-0.5 line-clamp-2">
+                                {item.description}
+                            </p>
+                        )}
                     </div>
                 </div>
                 <div className="text-right shrink-0">
-                    <p className="text-[16px] font-semibold text-ink flex items-center gap-0.5 justify-end">
-                        <IndianRupee className="h-3.5 w-3.5" />
+                    <p className="text-[16px] font-semibold text-ink flex items-center justify-end whitespace-nowrap">
+                        <IndianRupee className="h-4 w-4 mr-0.5" />
                         {Number(item.price || 0).toLocaleString()}
                     </p>
                 </div>
             </div>
 
+            {/* Hero Image */}
             {image && (
-                <img
-                    src={image}
-                    alt={item.name}
-                    className="h-36 w-full object-cover rounded-lg border border-border"
-                />
-            )}
-
-            {item.images?.length > 1 && (
-                <div className="grid grid-cols-4 gap-1.5">
-                    {item.images.slice(1, 5).map((url) => (
-                        <img
-                            key={url}
-                            src={url}
-                            alt={item.name}
-                            className="h-16 w-full object-cover rounded-md border border-border"
-                        />
-                    ))}
+                <div className="w-full relative rounded-[12px] overflow-hidden mb-4 bg-surface-sunken shrink-0">
+                    <img
+                        src={image}
+                        alt={item.name}
+                        className="w-full h-40 object-cover"
+                    />
                 </div>
             )}
 
-            <div className="flex flex-wrap gap-2 text-[12px]">
+            {/* Badges / Tags */}
+            <div className="flex flex-wrap items-center gap-2 text-[13px] font-medium mb-auto">
                 {item.category && (
-                    <span className="px-2 py-1 rounded-full bg-primary-soft text-primary">
+                    <span className="px-3 py-1 rounded-full bg-red-50 text-red-600 border border-transparent">
                         {item.category}
                     </span>
                 )}
                 {item.servings && (
-                    <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full border border-border text-text-secondary">
-                        <Users className="h-3 w-3" />
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full border border-border text-text-secondary">
+                        <Users className="h-3.5 w-3.5" />
                         {item.servings}
                     </span>
                 )}
                 <span
-                    className={`px-2 py-1 rounded-full ${item.is_veg
-                            ? 'bg-green-50 text-green-700 border border-green-200'
-                            : 'bg-red-50 text-red-700 border border-red-200'
+                    className={`px-3 py-1 rounded-full ${item.is_veg
+                            ? 'bg-green-50 text-green-600 border border-green-200/50'
+                            : 'bg-red-50 text-red-600 border border-red-200/50'
                         }`}
                 >
                     {item.is_veg ? 'Veg' : 'Non-Veg'}
                 </span>
                 {item.is_available === false && (
-                    <span className="px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                    <span className="px-3 py-1 rounded-full bg-amber-50 text-amber-700">
                         Unavailable
                     </span>
                 )}
             </div>
 
-            <div className="flex items-center gap-2 pt-1">
-                <Button variant="secondary" icon={Pencil} onClick={() => onEdit(item)}>Edit</Button>
-                <Button variant="danger" icon={Trash2} onClick={() => onDelete(item.id)}>Delete</Button>
-            </div>
+            {/* Action Buttons (Only render if callbacks are actually provided) */}
+            {(onEdit || onDelete) && (
+                <div className="flex items-center gap-3 pt-4 mt-5 border-t border-border">
+                    {onEdit && (
+                        <Button variant="secondary" icon={Pencil} onClick={() => onEdit(item)} className="rounded-xl flex-1 text-[13px] h-10">
+                            Edit
+                        </Button>
+                    )}
+                    {onDelete && (
+                        <Button variant="danger" icon={Trash2} onClick={() => onDelete(item.id)} className="rounded-xl flex-1 text-[13px] h-10">
+                            Delete
+                        </Button>
+                    )}
+                </div>
+            )}
         </Card>
     );
 }

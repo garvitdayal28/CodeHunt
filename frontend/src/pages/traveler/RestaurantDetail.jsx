@@ -155,8 +155,8 @@ export default function RestaurantDetail() {
                         <button
                             onClick={() => setActiveCategory('')}
                             className={`px-4 py-2 rounded-xl text-[14px] font-medium whitespace-nowrap transition-colors ${activeCategory === ''
-                                    ? 'bg-ink text-white'
-                                    : 'bg-white text-text-secondary border border-border hover:border-ink hover:text-ink'
+                                ? 'bg-ink text-white'
+                                : 'bg-white text-text-secondary border border-border hover:border-ink hover:text-ink'
                                 }`}
                         >
                             All Items
@@ -166,8 +166,8 @@ export default function RestaurantDetail() {
                                 key={cat}
                                 onClick={() => setActiveCategory(cat)}
                                 className={`px-4 py-2 rounded-xl text-[14px] font-medium whitespace-nowrap transition-colors ${activeCategory === cat
-                                        ? 'bg-ink text-white'
-                                        : 'bg-white text-text-secondary border border-border hover:border-ink hover:text-ink'
+                                    ? 'bg-ink text-white'
+                                    : 'bg-white text-text-secondary border border-border hover:border-ink hover:text-ink'
                                     }`}
                             >
                                 {cat}
@@ -196,9 +196,6 @@ export default function RestaurantDetail() {
                             <MenuItemCard
                                 key={item.id}
                                 item={item}
-                                // Overriding the default business card look to remove edit/delete
-                                onEdit={() => { }}
-                                onDelete={() => { }}
                             />
                         ))}
                     </div>
