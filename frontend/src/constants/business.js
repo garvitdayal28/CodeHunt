@@ -26,6 +26,7 @@ export function createEmptyBusinessForm() {
     description: '',
     totalRooms: '',
     amenities: '',
+    hotelImages: [],
     cuisine: '',
     openingHours: '',
     seatingCapacity: '',
@@ -59,6 +60,7 @@ export function buildBusinessProfilePayload(form) {
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean);
+    payload.image_urls = form.hotelImages || [];
   } else if (form.businessType === 'RESTAURANT') {
     payload.cuisine = form.cuisine?.trim() || '';
     payload.opening_hours = form.openingHours?.trim() || '';
@@ -101,6 +103,7 @@ export function businessProfileToForm(profile) {
     description: profile.description || '',
     totalRooms: details.total_rooms?.toString() || '',
     amenities: (details.amenities || []).join(', '),
+    hotelImages: details.image_urls || [],
     cuisine: details.cuisine || '',
     openingHours: details.opening_hours || '',
     seatingCapacity: details.seating_capacity?.toString() || '',

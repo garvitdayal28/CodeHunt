@@ -5,6 +5,8 @@ const statusConfig = {
   DISRUPTED:    { bg: 'bg-danger-soft',  text: 'text-danger',          label: 'Disrupted' },
   MISSED:       { bg: 'bg-danger-soft',  text: 'text-danger',          label: 'Missed' },
   LATE_ARRIVAL: { bg: 'bg-warning-soft', text: 'text-warning',         label: 'Late Arrival' },
+  CHECKED_IN:   { bg: 'bg-info-soft',    text: 'text-info',            label: 'Checked In' },
+  CHECKED_OUT:  { bg: 'bg-surface-sunken', text: 'text-text-secondary', label: 'Checked Out' },
   PENDING:      { bg: 'bg-warning-soft', text: 'text-warning',         label: 'Pending' },
   UPCOMING:     { bg: 'bg-info-soft',    text: 'text-info',            label: 'Upcoming' },
   RESCHEDULED:  { bg: 'bg-accent-soft',  text: 'text-accent',          label: 'Rescheduled' },

@@ -1,11 +1,22 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Building2, Edit3, Save, Star } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  BedDouble,
+  Building2,
+  CalendarCheck2,
+  Edit3,
+  Image as ImageIcon,
+  Save,
+  Star,
+} from 'lucide-react';
 
 import api from '../../api/axios';
 import BusinessEditableCard from '../../components/business/BusinessEditableCard';
+import HotelBookingsTable from '../../components/hotel/HotelBookingsTable';
+import ImageUploadInput from '../../components/hotel/ImageUploadInput';
 import Button from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import Input, { Select } from '../../components/ui/Input';
+import StatCard from '../../components/ui/StatCard';
 import {
   BUSINESS_TYPES,
   GUIDE_SERVICE_OPTIONS,
@@ -29,6 +40,7 @@ function prettyBusinessType(type) {
 }
 
 export default function BusinessDashboard() {
+  const [userUid, setUserUid] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [businessForm, setBusinessForm] = useState(createEmptyBusinessForm());
   const [loading, setLoading] = useState(true);
@@ -37,21 +49,57 @@ export default function BusinessDashboard() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const [hotelBookings, setHotelBookings] = useState([]);
+  const [hotelRooms, setHotelRooms] = useState([]);
+  const [hotelOpsLoading, setHotelOpsLoading] = useState(false);
+  const [bookingActionLoadingId, setBookingActionLoadingId] = useState('');
+
+  const isHotelBusiness = businessForm.businessType === 'HOTEL';
+
   const updateBusinessField = (field, value) => {
     setBusinessForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const resetFromProfile = (profile) => {
+    setUserUid(profile?.uid || '');
     setDisplayName(profile?.display_name || '');
     setBusinessForm(businessProfileToForm(profile?.business_profile));
   };
 
+  const fetchProfile = useCallback(async () => {
+    const res = await api.get('/business/profile');
+    const data = res?.data?.data;
+    resetFromProfile(data);
+    return data;
+  }, []);
+
+  const loadHotelOperations = useCallback(async () => {
+    try {
+      setHotelOpsLoading(true);
+      const [bookingsRes, roomsRes] = await Promise.all([
+        api.get('/business/hotel/bookings'),
+        api.get('/business/hotel/rooms'),
+      ]);
+      setHotelBookings(bookingsRes?.data?.data || []);
+      setHotelRooms(roomsRes?.data?.data || []);
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to load hotel operations data.');
+      setHotelBookings([]);
+      setHotelRooms([]);
+    } finally {
+      setHotelOpsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    const fetchProfile = async () => {
+    const load = async () => {
       try {
         setLoading(true);
-        const res = await api.get('/business/profile');
-        resetFromProfile(res?.data?.data);
+        setError('');
+        const profile = await fetchProfile();
+        if (profile?.business_profile?.business_type === 'HOTEL') {
+          await loadHotelOperations();
+        }
       } catch (err) {
         const backendMessage = err?.response?.data?.message;
         setError(backendMessage || 'Failed to load business profile.');
@@ -60,23 +108,27 @@ export default function BusinessDashboard() {
       }
     };
 
-    fetchProfile();
-  }, []);
+    load();
+  }, [fetchProfile, loadHotelOperations]);
 
-  const summaryRows = useMemo(() => ([
-    { label: 'Profile name', value: displayName },
-    { label: 'Business type', value: prettyBusinessType(businessForm.businessType) },
-    { label: 'Business name', value: businessForm.businessName },
-    { label: 'Phone', value: businessForm.phone },
-    { label: 'City', value: businessForm.city },
-    { label: 'Address', value: businessForm.address },
-  ]), [displayName, businessForm]);
+  const summaryRows = useMemo(
+    () => [
+      { label: 'Profile name', value: displayName },
+      { label: 'Business type', value: prettyBusinessType(businessForm.businessType) },
+      { label: 'Business name', value: businessForm.businessName },
+      { label: 'Phone', value: businessForm.phone },
+      { label: 'City', value: businessForm.city },
+      { label: 'Address', value: businessForm.address },
+    ],
+    [displayName, businessForm]
+  );
 
   const detailsRows = useMemo(() => {
     if (businessForm.businessType === 'HOTEL') {
       return [
         { label: 'Total rooms', value: businessForm.totalRooms },
         { label: 'Amenities', value: businessForm.amenities },
+        { label: 'Gallery images', value: `${(businessForm.hotelImages || []).length}` },
       ];
     }
     if (businessForm.businessType === 'RESTAURANT') {
@@ -104,6 +156,25 @@ export default function BusinessDashboard() {
     ];
   }, [businessForm]);
 
+  const hotelStats = useMemo(() => {
+    const totalInventory = hotelRooms.reduce((sum, room) => sum + Number(room.total_rooms || 0), 0);
+    const currentlyAvailable = hotelRooms.reduce(
+      (sum, room) => sum + Number(room.room_count_available ?? room.total_rooms ?? 0),
+      0
+    );
+    const confirmedArrivals = hotelBookings.filter((booking) => ['CONFIRMED', 'LATE_ARRIVAL'].includes(booking.status)).length;
+    const checkedIn = hotelBookings.filter((booking) => booking.status === 'CHECKED_IN').length;
+    const checkedOut = hotelBookings.filter((booking) => booking.status === 'CHECKED_OUT').length;
+
+    return [
+      { title: 'Total Inventory', value: totalInventory, icon: BedDouble, accent: 'blue' },
+      { title: 'Available Rooms', value: currentlyAvailable, icon: Building2, accent: 'success' },
+      { title: 'Pending Arrivals', value: confirmedArrivals, icon: CalendarCheck2, accent: 'gold' },
+      { title: 'Checked In', value: checkedIn, icon: Star, accent: 'primary' },
+      { title: 'Checked Out', value: checkedOut, icon: Star, accent: 'danger' },
+    ];
+  }, [hotelBookings, hotelRooms]);
+
   const handleSave = async () => {
     try {
       setError('');
@@ -118,6 +189,9 @@ export default function BusinessDashboard() {
 
       setEditing(false);
       setSuccess('Business details updated successfully.');
+      if (businessForm.businessType === 'HOTEL') {
+        await loadHotelOperations();
+      }
     } catch (err) {
       const backendMessage = err?.response?.data?.message;
       setError(backendMessage || 'Failed to update profile.');
@@ -129,12 +203,31 @@ export default function BusinessDashboard() {
   const handleCancel = async () => {
     try {
       setError('');
-      const res = await api.get('/business/profile');
-      resetFromProfile(res?.data?.data);
+      const profile = await fetchProfile();
+      if (profile?.business_profile?.business_type === 'HOTEL') {
+        await loadHotelOperations();
+      }
       setEditing(false);
     } catch (err) {
       const backendMessage = err?.response?.data?.message;
       setError(backendMessage || 'Failed to reset profile.');
+    }
+  };
+
+  const handleBookingStatusUpdate = async (booking, status) => {
+    const actionId = `${booking.itinerary_id}:${booking.id}:${status}`;
+    try {
+      setError('');
+      setSuccess('');
+      setBookingActionLoadingId(actionId);
+      const res = await api.patch(`/business/hotel/bookings/${booking.itinerary_id}/${booking.id}/status`, { status });
+      const updated = res?.data?.data;
+      setHotelBookings((prev) => prev.map((row) => (row.id === booking.id && row.itinerary_id === booking.itinerary_id ? updated : row)));
+      setSuccess(`Booking marked as ${status}.`);
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to update booking status.');
+    } finally {
+      setBookingActionLoadingId('');
     }
   };
 
@@ -194,30 +287,84 @@ export default function BusinessDashboard() {
       )}
 
       {!editing ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="p-1.5 rounded-lg bg-surface-sunken">
-                <Building2 className="h-4 w-4 text-text-muted" strokeWidth={1.75} />
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-1.5 rounded-lg bg-surface-sunken">
+                  <Building2 className="h-4 w-4 text-text-muted" strokeWidth={1.75} />
+                </div>
+                <h3 className="text-label-lg text-ink">Basic Information</h3>
               </div>
-              <h3 className="text-label-lg text-ink">Basic Information</h3>
-            </div>
-            <div className="space-y-3">
-              {summaryRows.map((row) => <ProfileRow key={row.label} label={row.label} value={row.value} />)}
-            </div>
-          </Card>
+              <div className="space-y-3">
+                {summaryRows.map((row) => <ProfileRow key={row.label} label={row.label} value={row.value} />)}
+              </div>
+            </Card>
 
-          <Card>
-            <h3 className="text-label-lg text-ink mb-4">Business Details</h3>
-            <div className="space-y-3">
-              {detailsRows.map((row) => <ProfileRow key={row.label} label={row.label} value={row.value} />)}
-              <ProfileRow label="Description" value={businessForm.description} />
-              {businessForm.businessType === 'TOURIST_GUIDE_SERVICE' && (
-                <ProfileRow label="Personal bio" value={businessForm.personalBio} />
+            <Card>
+              <h3 className="text-label-lg text-ink mb-4">Business Details</h3>
+              <div className="space-y-3">
+                {detailsRows.map((row) => <ProfileRow key={row.label} label={row.label} value={row.value} />)}
+                <ProfileRow label="Description" value={businessForm.description} />
+                {businessForm.businessType === 'TOURIST_GUIDE_SERVICE' && (
+                  <ProfileRow label="Personal bio" value={businessForm.personalBio} />
+                )}
+              </div>
+            </Card>
+          </div>
+
+          {isHotelBusiness && (
+            <>
+              {hotelOpsLoading ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {[...Array(3)].map((_, idx) => <div key={idx} className="h-24 bg-surface-sunken rounded-xl animate-pulse" />)}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+                  {hotelStats.map((stat, idx) => (
+                    <StatCard
+                      key={stat.title}
+                      title={stat.title}
+                      value={stat.value}
+                      icon={stat.icon}
+                      accent={stat.accent}
+                      index={idx}
+                    />
+                  ))}
+                </div>
               )}
-            </div>
-          </Card>
-        </div>
+
+              <Card>
+                {(businessForm.hotelImages || []).length > 0 ? (
+                  <div>
+                    <h3 className="text-label-lg text-ink mb-3">Hotel Gallery</h3>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {(businessForm.hotelImages || []).map((url) => (
+                        <img key={url} src={url} alt="Hotel" className="h-28 w-full object-cover rounded-lg border border-border" />
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[13px] text-text-secondary">
+                    No hotel photos uploaded yet. Use edit mode to upload your gallery.
+                  </p>
+                )}
+              </Card>
+
+              <Card>
+                <HotelBookingsTable
+                  title="Hotel Bookings"
+                  mode="business"
+                  bookings={hotelBookings}
+                  onCheckIn={(row) => handleBookingStatusUpdate(row, 'CHECKED_IN')}
+                  onCheckOut={(row) => handleBookingStatusUpdate(row, 'CHECKED_OUT')}
+                  actionLoadingId={bookingActionLoadingId}
+                  emptyMessage="No bookings available for this hotel."
+                />
+              </Card>
+            </>
+          )}
+        </>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <BusinessEditableCard title="Basic Information" icon={Building2}>
@@ -301,6 +448,20 @@ export default function BusinessDashboard() {
                   onChange={(e) => updateBusinessField('amenities', e.target.value)}
                   placeholder="Pool, Wifi, Parking"
                 />
+                <div className="pt-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ImageIcon className="h-4 w-4 text-text-muted" />
+                    <p className="text-[13px] font-medium text-ink">Hotel Gallery</p>
+                  </div>
+                  <ImageUploadInput
+                    label="Hotel Images"
+                    images={businessForm.hotelImages || []}
+                    onChange={(images) => updateBusinessField('hotelImages', images)}
+                    uploadPath="/business/hotel/upload-image"
+                    folder={userUid ? `tripallied/business/${userUid}/hotel` : 'tripallied/business/hotel'}
+                    maxFiles={20}
+                  />
+                </div>
               </>
             )}
 

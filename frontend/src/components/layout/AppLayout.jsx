@@ -26,7 +26,7 @@ const roleNavigation = {
     { name: 'My Trips', href: '/traveler/itineraries', icon: MapPin },
     { name: 'Cab', href: '/traveler/cabs', icon: Car },
     { name: 'Profile', href: '/traveler/profile', icon: UserCircle2 },
-    { name: 'Search', href: '/traveler/search', icon: Search },
+    { name: 'Hotels', href: '/traveler/hotels', icon: Search, aliases: ['/traveler/search', '/traveler/search/hotels', '/traveler/hotel/'] },
     { name: 'AI Planner', href: '/traveler/ai-planner', icon: Sparkles },
   ],
   BUSINESS: [
@@ -84,7 +84,7 @@ export default function AppLayout() {
 
           <nav className="flex items-center gap-1 flex-1">
             {navigation.map((item) => {
-              const isActive = location.pathname.startsWith(item.href);
+              const isActive = [item.href, ...(item.aliases || [])].some((path) => location.pathname.startsWith(path));
               return (
                 <Link
                   key={`${item.name}-${item.href}`}

@@ -75,6 +75,8 @@ function App() {
               <Route path="/traveler/itineraries" element={<MyTrips />} />
               <Route path="/traveler/itineraries/new" element={<CreateItinerary />} />
               <Route path="/traveler/itineraries/:id" element={<ItineraryDetail />} />
+              <Route path="/traveler/hotels" element={<HotelSearch />} />
+              <Route path="/traveler/hotels/:id" element={<HotelDetail />} />
               <Route path="/traveler/search" element={<HotelSearch />} />
               <Route path="/traveler/search/hotels" element={<HotelSearch />} />
               <Route path="/traveler/hotel/:id" element={<HotelDetail />} />

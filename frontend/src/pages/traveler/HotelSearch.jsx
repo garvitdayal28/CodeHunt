@@ -1,112 +1,148 @@
-import { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Search, Star, MapPin, Wifi, Waves } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Search } from 'lucide-react';
+
 import api from '../../api/axios';
-import Button from '../../components/ui/Button';
-import Input from '../../components/ui/Input';
+import HotelBookingsTable from '../../components/hotel/HotelBookingsTable';
+import HotelCard from '../../components/hotel/HotelCard';
+import HotelFiltersBar from '../../components/hotel/HotelFiltersBar';
+
+function buildSearchParams(filters) {
+  const params = new URLSearchParams();
+  if (filters.destination) params.set('destination', filters.destination.trim());
+  if (filters.checkin) params.set('checkin', filters.checkin);
+  if (filters.checkout) params.set('checkout', filters.checkout);
+  if (filters.rooms) params.set('rooms', filters.rooms);
+  if (filters.adults) params.set('adults', filters.adults);
+  if (filters.children !== '') params.set('children', filters.children);
+  if (filters.priceMin) params.set('price_min', filters.priceMin);
+  if (filters.priceMax) params.set('price_max', filters.priceMax);
+  if (filters.sortBy) params.set('sort_by', filters.sortBy);
+  return params;
+}
 
 export default function HotelSearch() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [destination, setDestination] = useState(searchParams.get('destination') || '');
+
+  const [filters, setFilters] = useState({
+    destination: searchParams.get('destination') || '',
+    checkin: searchParams.get('checkin') || '',
+    checkout: searchParams.get('checkout') || '',
+    rooms: searchParams.get('rooms') || '1',
+    adults: searchParams.get('adults') || '2',
+    children: searchParams.get('children') || '0',
+    priceMin: searchParams.get('price_min') || '',
+    priceMax: searchParams.get('price_max') || '',
+    sortBy: searchParams.get('sort_by') || 'price_asc',
+  });
+
   const [hotels, setHotels] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [error, setError] = useState('');
+  const [myBookings, setMyBookings] = useState([]);
+  const [bookingsLoading, setBookingsLoading] = useState(false);
 
-  const navigate = useNavigate();
-
-  const handleHotelClick = (hotel) => {
-    navigate(`/traveler/hotel/${hotel.id || hotel.external_hotel_id || encodeURIComponent(hotel.name)}`, { 
-      state: { hotel } 
-    });
+  const doSearch = async (activeFilters) => {
+    if (!activeFilters.destination?.trim()) return;
+    try {
+      setLoading(true);
+      setError('');
+      setSearched(true);
+      const params = buildSearchParams(activeFilters);
+      const res = await api.get(`/search/hotels?${params.toString()}`);
+      setHotels(res?.data?.data || []);
+    } catch (err) {
+      setHotels([]);
+      setError(err?.response?.data?.message || 'Unable to search hotels right now.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const doSearch = async (dest) => {
-    if (!dest) return;
-    setLoading(true);
-    setSearched(true);
+  const loadMyBookings = async () => {
     try {
-      const res = await api.get(`/search/hotels?destination=${encodeURIComponent(dest)}`);
-      setHotels(res.data.data || []);
+      setBookingsLoading(true);
+      const res = await api.get('/bookings/hotels/me');
+      setMyBookings(res?.data?.data || []);
     } catch {
-      // Fallback demo data
-      setHotels([
-        { id: '1', name: 'The Grand Horizon', location: 'Goa, India', star_rating: 5, price_range: { min: 8000, max: 25000 }, price_per_night: 8000, amenities: ['Pool', 'Spa', 'Wi-Fi', 'Beach Access'], image_url: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=500&h=300&fit=crop' },
-        { id: '2', name: 'Mountain Retreat Lodge', location: 'Manali, India', star_rating: 4, price_range: { min: 3000, max: 12000 }, price_per_night: 3000, amenities: ['Fireplace', 'Hiking', 'Wi-Fi'], image_url: 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=500&h=300&fit=crop' },
-        { id: '3', name: 'Seaside Villa Resort', location: 'Bali, Indonesia', star_rating: 5, price_range: { min: 15000, max: 50000 }, price_per_night: 15000, amenities: ['Private Pool', 'Spa', 'Butler', 'Beach'], image_url: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=500&h=300&fit=crop' },
-      ]);
-    } finally { setLoading(false); }
+      setMyBookings([]);
+    } finally {
+      setBookingsLoading(false);
+    }
   };
 
   useEffect(() => {
-    if (destination) doSearch(destination);
+    loadMyBookings();
   }, []);
 
-  const handleSearch = (e) => {
+  useEffect(() => {
+    if (filters.destination) doSearch(filters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSubmit = (e) => {
     e.preventDefault();
-    doSearch(destination);
+    doSearch(filters);
+  };
+
+  const handleViewRooms = (hotel) => {
+    const params = buildSearchParams(filters);
+    navigate(`/traveler/hotels/${hotel.id}?${params.toString()}`, {
+      state: { hotel, filters },
+    });
   };
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-display-md text-ink">Find Hotels</h1>
-        <p className="text-body-sm text-text-secondary mt-1">Search and compare hotels by destination.</p>
+        <h1 className="text-display-md text-ink">Hotels</h1>
+        <p className="text-body-sm text-text-secondary mt-1">
+          Search city hotels, compare room inventory, and book with your trip itinerary.
+        </p>
       </div>
 
-      <form onSubmit={handleSearch} className="flex items-end gap-3">
-        <Input label="Destination" icon={Search} placeholder="Where are you going?"
-          value={destination} onChange={(e) => setDestination(e.target.value)} className="flex-1" />
-        <Button type="submit" loading={loading} size="lg">Search</Button>
-      </form>
+      <HotelFiltersBar value={filters} onChange={setFilters} onSubmit={handleSubmit} loading={loading} />
+
+      {error && (
+        <div className="bg-danger-soft border border-danger/20 rounded-lg p-3">
+          <p className="text-[13px] text-danger">{error}</p>
+        </div>
+      )}
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1,2,3].map(i => <div key={i} className="h-72 bg-surface-sunken rounded-xl animate-pulse" />)}
+          {[...Array(6)].map((_, idx) => (
+            <div key={idx} className="h-80 bg-surface-sunken rounded-xl animate-pulse" />
+          ))}
         </div>
       ) : hotels.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {hotels.map((hotel, i) => (
-            <div key={hotel.id}
-              onClick={() => handleHotelClick(hotel)}
-              className={`group bg-white border border-border rounded-xl overflow-hidden hover:shadow-md transition-shadow cursor-pointer animate-fade-in-up stagger-${i + 1}`}
-            >
-              <div className="relative h-44 overflow-hidden">
-                <img src={hotel.image_url} alt={hotel.name}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                <div className="absolute top-3 right-3 bg-white/90 backdrop-blur rounded-lg px-2 py-1 flex items-center gap-1">
-                  <Star className="h-3 w-3 text-gold fill-gold" />
-                  <span className="text-[12px] font-semibold text-ink">{hotel.star_rating}</span>
-                </div>
-              </div>
-              <div className="p-4">
-                <h3 className="text-label-lg text-ink mb-1">{hotel.name}</h3>
-                <div className="flex items-center gap-1 text-body-sm text-text-secondary mb-3">
-                  <MapPin className="h-3.5 w-3.5" strokeWidth={1.75} />
-                  <span>{hotel.location}</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5 mb-3">
-                  {hotel.amenities?.slice(0, 3).map(a => (
-                    <span key={a} className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-surface-sunken text-text-secondary">{a}</span>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between pt-3 border-t border-border">
-                  <div>
-                    <span className="text-[18px] font-semibold text-ink">₹{hotel.price_range?.min?.toLocaleString()}</span>
-                    <span className="text-[12px] text-text-muted"> / night</span>
-                  </div>
-                  <Button size="sm">View Rooms</Button>
-                </div>
-              </div>
-            </div>
+          {hotels.map((hotel) => (
+            <HotelCard key={hotel.id} hotel={hotel} onViewRooms={handleViewRooms} />
           ))}
         </div>
       ) : searched ? (
-        <div className="text-center py-16 border border-border rounded-xl bg-white">
-          <Search className="h-10 w-10 text-text-placeholder mx-auto mb-3" />
+        <div className="text-center py-14 border border-border rounded-xl bg-white">
+          <Search className="h-10 w-10 text-text-placeholder mx-auto mb-2" />
           <p className="text-body-lg text-ink font-medium">No hotels found</p>
-          <p className="text-body-sm text-text-secondary mt-1">Try a different destination.</p>
+          <p className="text-body-sm text-text-secondary mt-1">Try adjusting city, guests, rooms, or price filters.</p>
         </div>
       ) : null}
+
+      <div className="rounded-xl border border-border bg-white p-4">
+        {bookingsLoading ? (
+          <div className="h-28 bg-surface-sunken rounded-lg animate-pulse" />
+        ) : (
+          <HotelBookingsTable
+            title="My Hotel Bookings"
+            bookings={myBookings}
+            mode="traveler"
+            emptyMessage="No hotel bookings yet. Search and reserve your stay."
+          />
+        )}
+      </div>
     </div>
   );
 }

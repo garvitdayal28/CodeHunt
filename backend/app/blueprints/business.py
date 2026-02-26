@@ -36,6 +36,20 @@ def _to_string_list(value):
     return []
 
 
+def _parse_date(value):
+    if not value:
+        return None
+    try:
+        return datetime.strptime(str(value), "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_itinerary_id(doc):
+    parent = doc.reference.parent.parent
+    return parent.id if parent else None
+
+
 def _normalize_room_payload(data, partial=False):
     if not isinstance(data, dict):
         raise ValueError("Request body must be a JSON object.")
@@ -336,3 +350,111 @@ def delete_hotel_business_room_type(room_id):
 
     room_ref.delete()
     return success_response({"id": room_id}, 200, "Room type deleted successfully.")
+
+
+@business_bp.route("/hotel/bookings", methods=["GET"])
+@require_auth
+@require_role(BUSINESS_ROLE)
+def get_hotel_business_bookings():
+    """List hotel bookings for the authenticated BUSINESS/HOTEL user."""
+    db = get_firestore_client()
+    uid = g.current_user["uid"]
+    user_data = _require_hotel_business_user(db, uid)
+    if not user_data:
+        return error_response("INVALID_ROLE", "Only HOTEL business accounts can access hotel bookings.", 403)
+
+    status_filter = str(request.args.get("status") or "").strip().upper()
+    checkin_from_raw = request.args.get("checkin_from")
+    checkout_to_raw = request.args.get("checkout_to")
+    checkin_from = _parse_date(checkin_from_raw)
+    checkout_to = _parse_date(checkout_to_raw)
+
+    if checkin_from_raw and not checkin_from:
+        return error_response("INVALID_DATES", "checkin_from must be in YYYY-MM-DD format.", 400)
+    if checkout_to_raw and not checkout_to:
+        return error_response("INVALID_DATES", "checkout_to must be in YYYY-MM-DD format.", 400)
+    if checkin_from and checkout_to and checkout_to < checkin_from:
+        return error_response("INVALID_DATES", "checkout_to must be greater than or equal to checkin_from.", 400)
+
+    bookings = []
+    for itinerary_doc in db.collection("itineraries").stream():
+        itinerary_id = itinerary_doc.id
+        for booking_doc in db.collection("itineraries").document(itinerary_id).collection("bookings").stream():
+            booking = booking_doc.to_dict() or {}
+            if booking.get("hotel_owner_uid") != uid:
+                continue
+            if status_filter and str(booking.get("status") or "").upper() != status_filter:
+                continue
+
+            booking_checkin = _parse_date(booking.get("check_in_date"))
+            booking_checkout = _parse_date(booking.get("check_out_date"))
+            if checkin_from and booking_checkin and booking_checkin < checkin_from:
+                continue
+            if checkout_to and booking_checkout and booking_checkout > checkout_to:
+                continue
+
+            booking["id"] = booking_doc.id
+            booking["itinerary_id"] = itinerary_id
+            bookings.append(booking)
+
+    bookings.sort(
+        key=lambda item: (
+            item.get("check_in_date") or "",
+            item.get("created_at") or "",
+        )
+    )
+    return success_response(bookings)
+
+
+@business_bp.route("/hotel/bookings/<itinerary_id>/<booking_id>/status", methods=["PATCH"])
+@require_auth
+@require_role(BUSINESS_ROLE)
+def update_hotel_business_booking_status(itinerary_id, booking_id):
+    """Update booking status with strict operational transitions for BUSINESS/HOTEL users."""
+    data = request.get_json()
+    if not data or not isinstance(data, dict):
+        return error_response("INVALID_BODY", "Request body must be a JSON object.", 400)
+
+    new_status = str(data.get("status") or "").strip().upper()
+    if new_status not in {"CHECKED_IN", "CHECKED_OUT"}:
+        return error_response("INVALID_STATUS", "status must be CHECKED_IN or CHECKED_OUT.", 400)
+
+    db = get_firestore_client()
+    uid = g.current_user["uid"]
+    user_data = _require_hotel_business_user(db, uid)
+    if not user_data:
+        return error_response("INVALID_ROLE", "Only HOTEL business accounts can update booking status.", 403)
+
+    booking_ref = db.collection("itineraries").document(itinerary_id).collection("bookings").document(booking_id)
+    booking_doc = booking_ref.get()
+    if not booking_doc.exists:
+        return error_response("NOT_FOUND", "Booking not found.", 404)
+
+    booking = booking_doc.to_dict() or {}
+    if booking.get("hotel_owner_uid") != uid:
+        return error_response("FORBIDDEN", "You can only update bookings for your own hotel.", 403)
+
+    current_status = str(booking.get("status") or "").upper()
+    valid_transitions = {
+        "CHECKED_IN": {"CONFIRMED", "LATE_ARRIVAL"},
+        "CHECKED_OUT": {"CHECKED_IN"},
+    }
+    if current_status not in valid_transitions[new_status]:
+        return error_response(
+            "INVALID_TRANSITION",
+            f"Cannot move booking from {current_status or 'UNKNOWN'} to {new_status}.",
+            400,
+        )
+
+    booking_ref.set(
+        {
+            "status": new_status,
+            "updated_at": datetime.utcnow().isoformat(),
+        },
+        merge=True,
+    )
+
+    updated = booking_ref.get().to_dict() or {}
+    updated["id"] = booking_id
+    updated["itinerary_id"] = itinerary_id
+    return success_response(updated, 200, f"Booking marked as {new_status}.")

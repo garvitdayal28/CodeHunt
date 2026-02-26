@@ -91,7 +91,7 @@ export default function ItineraryDetail() {
 
       {/* Quick Actions */}
       <div className="flex gap-3">
-        <Link to={`/traveler/search/hotels?destination=${encodeURIComponent(itinerary.destination)}`}>
+        <Link to={`/traveler/hotels?destination=${encodeURIComponent(itinerary.destination)}`}>
           <Button variant="secondary" size="sm" icon={Hotel}>Add Hotel</Button>
         </Link>
         <Link to={`/traveler/search/tours?destination=${encodeURIComponent(itinerary.destination)}`}>

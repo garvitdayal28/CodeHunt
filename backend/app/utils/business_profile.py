@@ -82,6 +82,7 @@ def validate_and_normalize_business_profile(profile_data: Dict[str, Any]) -> Dic
         normalized["details"] = {
             "total_rooms": _required_positive_int(profile_data, "total_rooms"),
             "amenities": _to_string_list(profile_data.get("amenities"), "amenities"),
+            "image_urls": _to_string_list(profile_data.get("image_urls"), "image_urls"),
         }
         if not normalized["address"]:
             raise ValueError("address is required for HOTEL.")
