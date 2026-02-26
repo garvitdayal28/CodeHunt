@@ -32,6 +32,7 @@ import RestaurantSearch from './pages/traveler/RestaurantSearch';
 import RestaurantDetail from './pages/traveler/RestaurantDetail';
 import TravelerProfile from './pages/traveler/Profile';
 import TourSearch from './pages/traveler/TourSearch';
+import TransportSearch from './pages/traveler/TransportSearch';
 import AITripPlanner from './pages/traveler/AITripPlanner';
 
 const OperatorDashboard = () => (
@@ -88,6 +89,7 @@ function App() {
                 <Route path="/traveler/hotels/:id" element={<HotelDetail />} />
                 <Route path="/traveler/restaurants" element={<RestaurantSearch />} />
                 <Route path="/traveler/restaurants/:id" element={<RestaurantDetail />} />
+                <Route path="/traveler/transport" element={<TransportSearch />} />
                 <Route path="/traveler/bookings" element={<MyBookings />} />
                 <Route path="/traveler/search" element={<HotelSearch />} />
                 <Route path="/traveler/search/hotels" element={<HotelSearch />} />

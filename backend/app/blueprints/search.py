@@ -11,6 +11,7 @@ from flask import Blueprint, request
 
 from app.services.firebase_service import get_firestore_client
 from app.services.redis_service import cache_get, cache_set
+from app.services.transport_service import search_flights, search_trains
 from app.utils.responses import error_response, success_response
 
 logger = logging.getLogger(__name__)
@@ -751,3 +752,34 @@ def get_restaurant_menu(restaurant_uid):
 
     cache_set(cache_key, payload, ttl=120)
     return success_response(payload)
+@search_bp.route("/transport", methods=["GET"])
+def search_transport():
+    """Search for flights or trains using external providers."""
+    mode = request.args.get("mode", "FLIGHT").upper()
+    origin = request.args.get("origin", "").strip()
+    destination = request.args.get("destination", "").strip()
+    date = request.args.get("date", "").strip()
+    travelers = _parse_int(request.args.get("travelers"), default=1, minimum=1)
+
+    if not origin or not destination:
+        return error_response("Origin and destination are required.")
+
+    criteria = {
+        "origin": origin,
+        "destination": destination,
+        "date": date,
+        "travelers": travelers,
+    }
+
+    try:
+        if mode == "FLIGHT":
+            results = search_flights(criteria)
+        elif mode == "TRAIN":
+            results = search_trains(criteria)
+        else:
+            return error_response("Invalid transport mode.")
+
+        return success_response(results)
+    except Exception as e:
+        logger.error("Transport search failed: %s", e)
+        return error_response("Failed to fetch transport options.")
