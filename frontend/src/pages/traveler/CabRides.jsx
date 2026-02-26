@@ -4,6 +4,7 @@ import {
   Clock3,
   LoaderCircle,
   LocateFixed,
+  MapPin,
   Search,
   Users,
 } from "lucide-react";
