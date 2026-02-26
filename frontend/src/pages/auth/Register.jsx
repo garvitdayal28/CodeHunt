@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Lock, Mail, User } from 'lucide-react';
 
 import BusinessProfileFormFields from '../../components/business/BusinessProfileFormFields';
+import AuthLayout from '../../components/layout/AuthLayout';
 import Button from '../../components/ui/Button';
 import Input, { Select } from '../../components/ui/Input';
 import { useAuth } from '../../contexts/AuthContext';
@@ -51,104 +52,92 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex bg-hero-gradient">
-      <div className="hidden lg:flex lg:w-1/2 flex-col justify-center px-16">
-        <div className="max-w-md">
-          <div className="flex items-center gap-3 mb-8">
-            <img src="/Logo-removedbg.png" alt="TripAllied" className="h-10 w-10 object-contain" />
-            <span className="text-[22px] font-semibold text-white tracking-tight">TripAllied</span>
-          </div>
-          <h1 className="text-display-xl text-white mb-4">
-            Start your
-            <br />
-            journey today.
-          </h1>
-          <p className="text-body-lg text-white/50">
-            Create an account to travel or run your business on TripAllied.
-          </p>
+    <AuthLayout
+      title={
+        <>
+          Start your
+          <br />
+          journey today.
+        </>
+      }
+      subtitle="Create an account to travel or run your business on TripAllied."
+      maxWidthClass="max-w-xl"
+    >
+      <h2 className="text-display-md text-ink mb-2">Create account</h2>
+      <p className="text-body-md text-text-secondary mb-8">Get started in less than a minute.</p>
+
+      {error && (
+        <div className="bg-danger-soft border border-danger/20 rounded-lg p-3 mb-5">
+          <p className="text-[13px] text-danger">{error}</p>
         </div>
-      </div>
+      )}
 
-      <div className="flex-1 flex items-center justify-center px-6 py-8">
-        <div className="w-full max-w-xl animate-fade-in-up">
-          <div className="lg:hidden flex items-center gap-2.5 mb-8">
-            <img src="/Logo-removedbg.png" alt="TripAllied" className="h-9 w-9 object-contain" />
-            <span className="text-[18px] font-semibold text-white">TripAllied</span>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Select
+          label="Role"
+          required
+          inputSize="lg"
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+        >
+          <option value="">Select role</option>
+          <option value="TRAVELER">Traveller</option>
+          <option value="BUSINESS">Business</option>
+        </Select>
+
+        <Input
+          label="Full name"
+          type="text"
+          required
+          icon={User}
+          inputSize="lg"
+          placeholder="Jane Doe"
+          value={displayName}
+          onChange={(e) => setDisplayName(e.target.value)}
+        />
+        <Input
+          label="Email"
+          type="email"
+          required
+          icon={Mail}
+          inputSize="lg"
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <Input
+          label="Password"
+          type="password"
+          required
+          icon={Lock}
+          inputSize="lg"
+          placeholder="Min. 6 characters"
+          minLength="6"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+
+        {role === 'BUSINESS' && (
+          <div className="rounded-xl border border-border p-4 bg-surface-sunken/20">
+            <p className="text-[13px] font-medium text-ink mb-3">Business details</p>
+            <BusinessProfileFormFields form={businessForm} onChange={updateBusinessField} />
           </div>
+        )}
 
-          <div className="bg-white rounded-2xl shadow-xl p-8 max-h-[88vh] overflow-y-auto">
-            <h2 className="text-display-sm text-ink mb-1">Create account</h2>
-            <p className="text-body-sm text-text-secondary mb-6">Get started in less than a minute.</p>
-
-            {error && (
-              <div className="bg-danger-soft border border-danger/20 rounded-lg p-3 mb-5">
-                <p className="text-[13px] text-danger">{error}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <Select
-                label="Role"
-                required
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-              >
-                <option value="">Select role</option>
-                <option value="TRAVELER">Traveller</option>
-                <option value="BUSINESS">Business</option>
-              </Select>
-
-              <Input
-                label="Full name"
-                type="text"
-                required
-                icon={User}
-                placeholder="Jane Doe"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-              />
-              <Input
-                label="Email"
-                type="email"
-                required
-                icon={Mail}
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-              <Input
-                label="Password"
-                type="password"
-                required
-                icon={Lock}
-                placeholder="Min. 6 characters"
-                minLength="6"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-
-              {role === 'BUSINESS' && (
-                <div className="rounded-xl border border-border p-4 bg-surface-sunken/20">
-                  <p className="text-[13px] font-medium text-ink mb-3">Business details</p>
-                  <BusinessProfileFormFields form={businessForm} onChange={updateBusinessField} />
-                </div>
-              )}
-
-              <Button type="submit" loading={loading} className="w-full" size="lg">
-                Create account
-              </Button>
-            </form>
-
-            <p className="text-center text-[13px] text-text-secondary mt-5">
-              Already have an account?
-              {' '}
-              <Link to="/login" className="text-primary font-medium hover:text-primary-hover transition-colors">
-                Sign in
-              </Link>
-            </p>
-          </div>
+        <div className="pt-2">
+          <Button type="submit" loading={loading} className="w-full" size="lg">
+            Create account
+          </Button>
         </div>
-      </div>
-    </div>
+      </form>
+
+      <p className="text-center text-[13px] text-text-secondary mt-5">
+        Already have an account?
+        {' '}
+        <Link to="/login" className="text-primary font-medium hover:text-primary-hover transition-colors">
+          Sign in
+        </Link>
+      </p>
+    </AuthLayout>
   );
 }
