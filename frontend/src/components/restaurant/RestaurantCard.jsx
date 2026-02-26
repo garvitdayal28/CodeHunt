@@ -66,7 +66,7 @@ export default function RestaurantCard({ restaurant, onViewMenu }) {
             </span>
           </div>
 
-          <div className="mt-4 pt-4 border-t border-border flex items-end justify-between mt-auto">
+          <div className="pt-4 border-t border-border flex items-end justify-between mt-auto">
             <div>
               <p className="text-[12px] text-text-secondary mb-0.5">
                 Approx. Cost
