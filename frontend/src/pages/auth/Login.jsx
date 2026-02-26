@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import Button from '../../components/ui/Button';
+import Input from '../../components/ui/Input';
+import { Mail, Lock } from 'lucide-react';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -16,73 +19,76 @@ export default function Login() {
       setError('');
       setLoading(true);
       await login(email, password);
-      
-      // The AuthContext's onAuthStateChanged will handle routing us to the correct dashboard
-      // Note: We might need a generic redirect here that checks role, or let a Landing page handle it.
       navigate('/');
     } catch (err) {
-      setError('Failed to log in. Please check your credentials.');
-      console.error(err);
+      console.error('Login error:', err);
+      const code = err?.code || '';
+      if (code === 'auth/user-not-found' || code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        setError('Invalid email or password.');
+      } else if (code === 'auth/too-many-requests') {
+        setError('Too many attempts. Please try again later.');
+      } else {
+        setError(err.message || 'Something went wrong.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-md">
-        <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Sign in to CodeHunt
-          </h2>
+    <div className="min-h-screen flex bg-hero-gradient">
+      {/* Left Brand */}
+      <div className="hidden lg:flex lg:w-1/2 flex-col justify-center px-16">
+        <div className="max-w-md">
+          <div className="flex items-center gap-3 mb-8">
+            <img src="/Logo-removedbg.png" alt="TripAllied" className="h-10 w-10 object-contain" />
+            <span className="text-[22px] font-semibold text-white tracking-tight">TripAllied</span>
+          </div>
+          <h1 className="text-display-xl text-white mb-4">
+            Travel planning,<br />fully in sync.
+          </h1>
+          <p className="text-body-lg text-white/50">
+            Hotels, tours, and activities in one place.<br />When plans change, every stakeholder knows instantly.
+          </p>
         </div>
-        
-        {error && (
-          <div className="bg-red-50 border-l-4 border-red-400 p-4">
-            <p className="text-sm text-red-700">{error}</p>
-          </div>
-        )}
+      </div>
 
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <input
-                type="email"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div>
-              <input
-                type="password"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
+      {/* Right Form */}
+      <div className="flex-1 flex items-center justify-center px-6">
+        <div className="w-full max-w-sm animate-fade-in-up">
+          <div className="lg:hidden flex items-center gap-2.5 mb-8">
+            <img src="/Logo-removedbg.png" alt="TripAllied" className="h-9 w-9 object-contain" />
+            <span className="text-[18px] font-semibold text-white">TripAllied</span>
           </div>
 
-          <div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-            >
-              {loading ? 'Signing in...' : 'Sign in'}
-            </button>
+          <div className="bg-white rounded-2xl shadow-xl p-8">
+            <h2 className="text-display-sm text-ink mb-1">Welcome back</h2>
+            <p className="text-body-sm text-text-secondary mb-6">Sign in to your account to continue.</p>
+
+            {error && (
+              <div className="bg-danger-soft border border-danger/20 rounded-lg p-3 mb-5">
+                <p className="text-[13px] text-danger">{error}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <Input label="Email" type="email" required icon={Mail} placeholder="you@example.com"
+                value={email} onChange={(e) => setEmail(e.target.value)} />
+              <Input label="Password" type="password" required icon={Lock} placeholder="••••••••"
+                value={password} onChange={(e) => setPassword(e.target.value)} />
+              <Button type="submit" loading={loading} className="w-full" size="lg">
+                Sign in
+              </Button>
+            </form>
+
+            <p className="text-center text-[13px] text-text-secondary mt-5">
+              Don't have an account?{' '}
+              <Link to="/register" className="text-primary font-medium hover:text-primary-hover transition-colors">
+                Create one
+              </Link>
+            </p>
           </div>
-          
-          <div className="text-sm text-center">
-            <Link to="/register" className="font-medium text-blue-600 hover:text-blue-500">
-              Don't have an account? Register here
-            </Link>
-          </div>
-        </form>
+        </div>
       </div>
     </div>
   );

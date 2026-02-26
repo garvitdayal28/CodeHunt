@@ -47,23 +47,23 @@
 ## 🔷 Phase 3 — Data Model & Firestore Collections
 *Goal: All Firestore collections, subcollections, security rules, and composite indexes are in place.*
 
-- [ ] **`users` collection** — Document per user (UID as doc ID): display name, email, role, linked property/operator ID
-- [ ] **`properties` collection** — Hotel property docs: name, location, room types, inventory counts, admin UID
-  - [ ] `rooms` subcollection — Individual room docs: room number, type, status (AVAILABLE/OCCUPIED/MAINTENANCE)
-- [ ] **`tours` collection** — Tour docs: name, description, duration, category tags, operator UID
-  - [ ] `time_slots` subcollection — Slot docs: scheduled time, capacity, booked count
-- [ ] **`itineraries` collection** — Per-traveler: destination, dates, lifecycle status
-  - [ ] `bookings` subcollection — Hotel reservation docs with denormalized guest name + property name
-  - [ ] `activities` subcollection — Activity booking docs with denormalized tour name
-- [ ] **`disruption_events` collection** — Disruption records: itinerary ID, type, original/new values, timestamp, cascaded refs
-- [ ] **`activity_log` collection** — Immutable audit log entries: actor UID, role, action type, resource path, timestamp, changes map
-- [ ] **`alerts` collection** — Targeted admin alerts: target UID, alert type, message, source event ID, read boolean
-- [ ] **Firestore composite indexes** — Define in `firestore.indexes.json`:
+- [x] **`users` collection** — Document per user (UID as doc ID): display name, email, role, linked property/operator ID
+- [x] **`properties` collection** — Hotel property docs: name, location, room types, inventory counts, admin UID
+  - [x] `rooms` subcollection — Individual room docs: room number, type, status (AVAILABLE/OCCUPIED/MAINTENANCE)
+- [x] **`tours` collection** — Tour docs: name, description, duration, category tags, operator UID
+  - [x] `time_slots` subcollection — Slot docs: scheduled time, capacity, booked count
+- [x] **`itineraries` collection** — Per-traveler: destination, dates, lifecycle status
+  - [x] `bookings` subcollection — Hotel reservation docs with denormalized guest name + property name
+  - [x] `activities` subcollection — Activity booking docs with denormalized tour name
+- [x] **`disruption_events` collection** — Disruption records: itinerary ID, type, original/new values, timestamp, cascaded refs
+- [x] **`activity_log` collection** — Immutable audit log entries: actor UID, role, action type, resource path, timestamp, changes map
+- [x] **`alerts` collection** — Targeted admin alerts: target UID, alert type, message, source event ID, read boolean
+- [x] **Firestore composite indexes** — Define in `firestore.indexes.json`:
   - `alerts`: target_uid + read + created_at
   - `activity_log`: resource_id + created_at
   - `disruption_events`: destination + created_at
   - `itineraries/activities`: scheduled_time + status
-- [ ] **Firestore security rules** — Write rules ensuring users can only access own data; admins access own property/tour data
+- [x] **Firestore security rules** — Write rules ensuring users can only access own data; admins access own property/tour data
 
 ---
 
@@ -81,14 +81,21 @@
 - [ ] **Pagination** — Implement Firestore cursor-based pagination on all list endpoints (default 20, max 100)
 
 ### Frontend
-- [ ] **Traveler dashboard layout** — Main dashboard with "My Trips" overview
-- [ ] **Create itinerary form** — Destination picker, date range selector
-- [ ] **Hotel search & results page** — Search filters, paginated result cards with availability
-- [ ] **Tour search & results page** — Category/destination filters, result cards with time slots
+- [x] **Traveler dashboard layout** — Main dashboard with hero search + popular destinations
+- [x] **Create itinerary form** — Destination picker, date range selector
+- [x] **Hotel search & results page** — Search filters, paginated result cards with availability
+- [x] **Tour search & results page** — Category/destination filters, result cards with time slots
 - [ ] **Hotel detail page** — Room types, pricing, availability calendar, "Book" button
 - [ ] **Tour detail page** — Description, time slots with remaining capacity, "Book" button
-- [ ] **Unified itinerary timeline** — Chronological view of all bookings + activities with lifecycle status badges
+- [x] **Unified itinerary timeline** — Chronological view of all bookings + activities with lifecycle status badges
 - [ ] **Booking confirmation flow** — Summary → Confirm → Success with booking ID
+
+### External Hotel API Integration (Enhancement)
+- [x] **Sign up for RapidAPI** — Get Booking.com API key, add `RAPIDAPI_KEY` to backend `.env`
+- [x] **`services/hotel_api_service.py`** — API client that calls RapidAPI, returns normalized hotel data
+- [x] **Update `/api/search/hotels`** — Call external API instead of Firestore, cache results in Redis (15-min TTL)
+- [x] **Fallback** — If API fails or rate-limited, gracefully return Firestore-seeded data
+- [ ] **Store external hotel ID** — Save `external_hotel_id` in booking documents for reference
 
 ---
 
@@ -178,9 +185,9 @@
 *Goal: Implement differentiating features that elevate the platform beyond a standard CRUD app.*
 
 ### AI-Powered Trip Preference Engine
-- [ ] **Preference form UI** — Travel style, budget, group size, duration inputs
-- [ ] **Backend scoring endpoint** — Query Firestore by category tags (`array_contains`), apply weighted scoring, return top-ranked itinerary suggestion
-- [ ] **Suggested itinerary display** — Show pre-assembled itinerary from preference results, one-click "Accept & Book"
+- [x] **Preference form UI** — Travel style, budget, group size, duration inputs (Implemented via AITripPlanner)
+- [x] **Backend scoring endpoint** — AI endpoint to suggest destinations and generate itineraries (`/api/ai/*`)
+- [x] **Suggested itinerary display** — Show pre-assembled itinerary from preference results, one-click "Accept & Book"
 
 ### Traveler Sentiment Tracker
 - [ ] **Post-stay review prompt** — After booking status → Completed, show review form (star rating + text)
@@ -212,12 +219,12 @@
 ## 🔷 Phase 11 — UI/UX Polish & Responsive Design
 *Goal: Make every screen look and feel demo-ready with a premium, modern design.*
 
-- [ ] **Design system** — Finalize color palette, typography (Google Fonts), spacing scale in Tailwind config
-- [ ] **Dark mode support** — Optional toggle, or default dark theme for admin dashboards
+- [x] **Design system** — Finalize color palette, typography (Google Fonts), spacing scale in Tailwind config
+- [x] **Dark mode support** — Optional toggle, or default dark theme for admin dashboards
 - [ ] **Responsive layouts** — All dashboards work on laptop + tablet screen sizes
-- [ ] **Micro-animations** — Smooth transitions on status badge changes, alert arrivals, page transitions
-- [ ] **Loading states** — Skeleton loaders on all data-fetching pages
-- [ ] **Empty states** — Friendly illustrations/messages when lists are empty
+- [x] **Micro-animations** — Smooth transitions on status badge changes, alert arrivals, page transitions
+- [x] **Loading states** — Skeleton loaders on all data-fetching pages
+- [x] **Empty states** — Friendly illustrations/messages when lists are empty
 - [ ] **Error states** — User-friendly error messages with retry actions
 - [ ] **Toast notifications** — For booking confirmations, disruption reports, alert actions
 

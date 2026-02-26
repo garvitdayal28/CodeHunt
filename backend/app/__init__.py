@@ -57,6 +57,7 @@ def create_app(config_name=None):
     from app.blueprints.platform import platform_bp
     from app.blueprints.events import events_bp
     from app.blueprints.search import search_bp
+    from app.blueprints.ai import ai_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(bookings_bp)
@@ -66,6 +67,7 @@ def create_app(config_name=None):
     app.register_blueprint(platform_bp)
     app.register_blueprint(events_bp)
     app.register_blueprint(search_bp)
+    app.register_blueprint(ai_bp)
 
     # ──────────────────────────────────────────────
     # Health Check

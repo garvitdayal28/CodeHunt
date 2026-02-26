@@ -601,3 +601,27 @@ The following features are intentionally excluded from the MVP to maintain a foc
 ---
 
 *This PRD was written for a hackathon submission. All architectural decisions prioritize demonstrability, correctness, and real-world soundness within a time-constrained build.*
+
+---
+
+## 17. External Hotel API Integration (Planned Enhancement)
+
+**Goal:** Replace static/seeded hotel data with real hotel listings from an external API while keeping the booking lifecycle, admin dashboard, and disruption engine unchanged.
+
+### Approach: Hybrid Model
+- **Search/Discovery** → Calls RapidAPI (Booking.com unofficial API) or Amadeus Hotel Search API
+- **Booking/Management** → Stored entirely in Firestore, managed by hotel admins on TripAllied
+- **Fallback** → If API is unavailable, gracefully degrades to Firestore-seeded data
+
+### API Options Evaluated
+| API | Free Tier | Coverage |
+|---|---|---|
+| RapidAPI Booking.com | 500 req/mo | Full Booking.com inventory with photos, reviews, pricing |
+| Amadeus Hotel Search | 500 calls/mo (test) | 150K+ hotels via GDS |
+| Makcorps | Limited free | Price comparison across OTAs |
+
+### Implementation Scope
+- New backend service: `services/hotel_api_service.py` (API client + Redis cache)
+- Update `GET /api/search/hotels` to call external API with Redis caching (15-min TTL)
+- Store external hotel ID in booking documents for reference
+- **Zero frontend changes required** — existing hotel cards already display all needed fields

@@ -10,8 +10,8 @@ export default function ProtectedRoute({ allowedRoles }) {
   }
 
   if (allowedRoles && (!userRole || !allowedRoles.includes(userRole))) {
-    // Logged in but doesn't have required role
-    return <Navigate to="/unauthorized" replace />;
+    // Logged in but doesn't have required role — redirect to their correct dashboard
+    return <Navigate to="/" replace />;
   }
 
   return <Outlet />;
