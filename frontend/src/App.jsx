@@ -10,6 +10,7 @@ import PlatformDisruptions from './pages/admin/Disruptions';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import BusinessDashboard from './pages/business/Dashboard';
+import MenuManagement from './pages/business/MenuManagement';
 import BusinessRides from './pages/business/Rides';
 import BusinessRatings from './pages/business/Ratings';
 import HotelDashboard from './pages/hotel/Dashboard';
@@ -92,6 +93,7 @@ function App() {
             <Route element={<ProtectedRoute allowedRoles={['BUSINESS']} />}>
               <Route path="/business/dashboard" element={<BusinessDashboard />} />
               <Route path="/business/rooms" element={<RoomManagement />} />
+              <Route path="/business/menu" element={<MenuManagement />} />
               <Route path="/business/rides" element={<BusinessRides />} />
               <Route path="/business/ratings" element={<BusinessRatings />} />
             </Route>
