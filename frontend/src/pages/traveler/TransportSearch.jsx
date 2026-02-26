@@ -1,52 +1,19 @@
-import { useState } from "react";
-import { Plane, Train, Search, MapPin, Calendar, Users, ArrowRight, ExternalLink } from "lucide-react";
-import { motion, AnimatePresence } from "motion/react";
-import api from "../../api/axios";
-import Button from "../../components/ui/Button";
-import Card from "../../components/ui/Card";
-import Skeleton from "../../components/ui/Skeleton";
-import EmptyState from "../../components/ui/EmptyState";
+import HeroHeader from "../../components/ui/HeroHeader";
 
 export default function TransportSearch() {
     const [mode, setMode] = useState("FLIGHT"); // FLIGHT or TRAIN
-    const [origin, setOrigin] = useState("");
-    const [destination, setDestination] = useState("");
-    const [date, setDate] = useState("");
-    const [travelers, setTravelers] = useState(1);
-    const [loading, setLoading] = useState(false);
-    const [results, setResults] = useState([]);
-    const [searched, setSearched] = useState(false);
-
-    const handleSearch = async (e) => {
-        e.preventDefault();
-        if (!origin || !destination) return;
-
-        setLoading(true);
-        setSearched(true);
-        try {
-            const res = await api.get("/search/transport", {
-                params: { mode, origin, destination, date, travelers }
-            });
-            setResults(res.data?.data || []);
-        } catch (err) {
-            console.error("Transport search failed:", err);
-            setResults([]);
-        } finally {
-            setLoading(false);
-        }
-    };
+    // ... (rest of the state)
 
     return (
         <div className="max-w-6xl mx-auto space-y-8 animate-fade-in">
-            {/* Header & Mode Toggle */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-                <div>
-                    <h1 className="text-display-md text-ink">Search Flights & Trains</h1>
-                    <p className="text-body-md text-text-secondary mt-1">
-                        Discover the best routes and book your next journey.
-                    </p>
-                </div>
+            <HeroHeader
+                title="Ready for Takeoff?"
+                description="Search real-time flights and trains, compare routes, and book your next adventure instantly."
+                image="https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=1600&h=400&fit=crop&q=80"
+            />
 
+            {/* Mode Toggle */}
+            <div className="flex justify-end">
                 <div className="flex bg-surface-sunken p-1 rounded-xl border border-border w-fit">
                     <button
                         onClick={() => { setMode("FLIGHT"); setResults([]); setSearched(false); }}

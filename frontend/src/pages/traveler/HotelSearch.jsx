@@ -6,7 +6,7 @@ import api from '../../api/axios';
 import HotelCard from '../../components/hotel/HotelCard';
 import EmptyState from '../../components/ui/EmptyState';
 import HotelFiltersBar from '../../components/hotel/HotelFiltersBar';
-import PageHeader from '../../components/ui/PageHeader';
+import HeroHeader from '../../components/ui/HeroHeader';
 import { SkeletonCard } from '../../components/ui/Skeleton';
 
 function buildSearchParams(filters) {
@@ -80,9 +80,10 @@ export default function HotelSearch() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Hotels"
-        description="Search city hotels, compare room inventory, and book with your trip itinerary."
+      <HeroHeader
+        title="Find Your Perfect Stay"
+        description="Search city hotels, compare room inventory, and book your ideal stay with ease."
+        image="https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=1600&h=400&fit=crop&q=80"
       />
 
       <HotelFiltersBar value={filters} onChange={setFilters} onSubmit={handleSubmit} loading={loading} />
@@ -96,7 +97,7 @@ export default function HotelSearch() {
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[...Array(6)].map((_, idx) => (
-            <SkeletonCard key={idx} className="h-[22rem]" bodyLines={2} />
+            <SkeletonCard key={idx} className="h-88" bodyLines={2} />
           ))}
         </div>
       ) : hotels.length > 0 ? (

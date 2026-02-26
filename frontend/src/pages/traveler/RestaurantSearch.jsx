@@ -6,7 +6,7 @@ import api from '../../api/axios';
 import RestaurantCard from '../../components/restaurant/RestaurantCard';
 import RestaurantFiltersBar from '../../components/restaurant/RestaurantFiltersBar';
 import EmptyState from '../../components/ui/EmptyState';
-import PageHeader from '../../components/ui/PageHeader';
+import HeroHeader from '../../components/ui/HeroHeader';
 import { SkeletonCard } from '../../components/ui/Skeleton';
 
 function buildSearchParams(filters) {
@@ -68,9 +68,10 @@ export default function RestaurantSearch() {
 
     return (
         <div className="space-y-6">
-            <PageHeader
-                title="Restaurants"
-                description="Find the best places to eat, browse menus, and discover local cuisines."
+            <HeroHeader
+                title="Savor Local Flavors"
+                description="Find the best places to eat, browse menus, and discover authentic local cuisines."
+                image="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1600&h=400&fit=crop&q=80"
             />
 
             <RestaurantFiltersBar value={filters} onChange={setFilters} onSubmit={handleSubmit} loading={loading} />
@@ -84,7 +85,7 @@ export default function RestaurantSearch() {
             {loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {[...Array(6)].map((_, idx) => (
-                        <SkeletonCard key={idx} className="h-[22rem]" bodyLines={2} />
+                        <SkeletonCard key={idx} className="h-88" bodyLines={2} />
                     ))}
                 </div>
             ) : restaurants.length > 0 ? (
