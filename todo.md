@@ -8,17 +8,17 @@
 ## 🔷 Phase 1 — Project Setup & Infrastructure
 *Goal: Get the foundational infrastructure wired up so all future work has a base to build on.*
 
-- [ ] **Backend scaffold** — Initialize Flask app in `/backend` with virtual environment and `requirements.txt`
-- [ ] **Flask Blueprints structure** — Create blueprint directories: `auth`, `bookings`, `disruptions`, `admin`, `reporting`, `events`
-- [ ] **Firebase project setup** — Create Firebase project, enable Firestore & Authentication, download service account key
-- [ ] **Firebase Admin SDK** — Initialize `firebase_admin` in Flask, load credentials from `FIREBASE_SERVICE_ACCOUNT_JSON` env var
+- [x] **Backend scaffold** — Initialize Flask app in `/backend` with virtual environment and `requirements.txt`
+- [x] **Flask Blueprints structure** — Create blueprint directories: `auth`, `bookings`, `disruptions`, `admin`, `reporting`, `events`
+- [x] **Firebase project setup** — Create Firebase project, enable Firestore & Authentication, download service account key
+- [x] **Firebase Admin SDK** — Initialize `firebase_admin` in Flask, load credentials from `FIREBASE_SERVICE_ACCOUNT_JSON` env var
 - [ ] **Redis setup** — Run Redis locally via Docker, configure `REDIS_URL` env var, test connection from Flask
-- [ ] **Environment config** — Create `.env.example` with all required keys (`FIREBASE_SERVICE_ACCOUNT_JSON`, `REDIS_URL`, `FLASK_ENV`, `FRONTEND_ORIGIN`, `JWT_AUDIENCE`)
-- [ ] **CORS config** — Install `Flask-CORS`, configure to allow requests from `FRONTEND_ORIGIN`
-- [ ] **Frontend dependencies** — Install `react-router-dom`, `axios`, `firebase` (client SDK), `recharts` in `/frontend`
-- [ ] **Axios interceptor** — Set up Axios instance with interceptor that attaches Firebase ID token to `Authorization` header
-- [ ] **Health check endpoint** — Implement `GET /api/health` that checks Firestore + Redis connectivity
-- [ ] **Structured error responses** — Create a consistent error envelope utility: `{ "error": "CODE", "message": "...", "request_id": "uuid" }`
+- [x] **Environment config** — Create `.env.example` with all required keys (`FIREBASE_SERVICE_ACCOUNT_JSON`, `REDIS_URL`, `FLASK_ENV`, `FRONTEND_ORIGIN`, `JWT_AUDIENCE`)
+- [x] **CORS config** — Install `Flask-CORS`, configure to allow requests from `FRONTEND_ORIGIN`
+- [x] **Frontend dependencies** — Install `react-router-dom`, `axios`, `firebase` (client SDK), `recharts` in `/frontend`
+- [x] **Axios interceptor** — Set up Axios instance with interceptor that attaches Firebase ID token to `Authorization` header
+- [x] **Health check endpoint** — Implement `GET /api/health` that checks Firestore + Redis connectivity
+- [x] **Structured error responses** — Create a consistent error envelope utility: `{ "error": "CODE", "message": "...", "request_id": "uuid" }`
 
 ---
 
@@ -26,21 +26,21 @@
 *Goal: Users can register, log in, and be routed to the correct dashboard based on their role.*
 
 ### Backend
-- [ ] **`POST /api/auth/register`** — Accept email, password, display name, and role → Create user in Firebase Auth → Set custom claim with role → Write user doc to `users` collection
-- [ ] **`POST /api/auth/login`** — Verify credentials via Firebase, return token
+- [x] **`POST /api/auth/register`** — Accept email, password, display name, and role → Create user in Firebase Auth → Set custom claim with role → Write user doc to `users` collection
+- [x] **`POST /api/auth/login`** — Verify credentials via Firebase, return token
 - [ ] **`POST /api/auth/refresh`** — Handle token refresh
-- [ ] **`@require_auth` decorator** — Verifies Firebase ID token on every protected route, extracts UID and role
-- [ ] **`@require_role` decorator** — Extends `@require_auth` to check that the user's role matches the allowed roles for the endpoint
+- [x] **`@require_auth` decorator** — Verifies Firebase ID token on every protected route, extracts UID and role
+- [x] **`@require_role` decorator** — Extends `@require_auth` to check that the user's role matches the allowed roles for the endpoint
 - [ ] **Input validation** — Set up Marshmallow or Pydantic for request body validation on auth endpoints
 
 ### Frontend
-- [ ] **Firebase client SDK init** — Configure Firebase app in React with project config
-- [ ] **Auth context** — Create `AuthContext` with `useAuth` hook → stores current user, token, role, loading state
-- [ ] **Login page** — Email/password login form with role display after login
-- [ ] **Register page** — Registration form with role selector (Traveler, Hotel Admin, Tour Operator, Platform Admin)
-- [ ] **Protected route wrapper** — `<ProtectedRoute allowedRoles={[...]} />` component using React Router
-- [ ] **Role-based redirect** — After login, redirect user to their role-specific dashboard route
-- [ ] **Layout shell** — Create shared layout with role-aware sidebar navigation
+- [x] **Firebase client SDK init** — Configure Firebase app in React with project config
+- [x] **Auth context** — Create `AuthContext` with `useAuth` hook → stores current user, token, role, loading state
+- [x] **Login page** — Email/password login form with role display after login
+- [x] **Register page** — Registration form with role selector (Traveler, Hotel Admin, Tour Operator, Platform Admin)
+- [x] **Protected route wrapper** — `<ProtectedRoute allowedRoles={[...]} />` component using React Router
+- [x] **Role-based redirect** — After login, redirect user to their role-specific dashboard route
+- [x] **Layout shell** — Create shared layout with role-aware sidebar navigation
 
 ---
 
@@ -71,13 +71,13 @@
 *Goal: Travelers can create itineraries, search/book hotels & tours, and view a unified timeline.*
 
 ### Backend
-- [ ] **`GET /api/itineraries`** — Return all itineraries for the authenticated traveler
-- [ ] **`POST /api/itineraries`** — Create new itinerary (destination, dates) → status: `DRAFT`
-- [ ] **`GET /api/itineraries/{id}`** — Return full itinerary with bookings + activities subcollections
-- [ ] **`POST /api/bookings`** — Create hotel booking linked to itinerary, update room availability, write audit log
-- [ ] **`POST /api/activities`** — Book a tour activity, decrement slot capacity, write audit log
-- [ ] **Search hotels endpoint** — `GET /api/search/hotels?destination=&dates=&price_range=&rating=` with Redis cache (5-min TTL)
-- [ ] **Search tours endpoint** — `GET /api/search/tours?destination=&category=&date=` with Redis cache
+- [x] **`GET /api/itineraries`** — Return all itineraries for the authenticated traveler
+- [x] **`POST /api/itineraries`** — Create new itinerary (destination, dates) → status: `DRAFT`
+- [x] **`GET /api/itineraries/{id}`** — Return full itinerary with bookings + activities subcollections
+- [x] **`POST /api/bookings`** — Create hotel booking linked to itinerary, update room availability, write audit log
+- [x] **`POST /api/activities`** — Book a tour activity, decrement slot capacity, write audit log
+- [x] **Search hotels endpoint** — `GET /api/search/hotels?destination=&dates=&price_range=&rating=` with Redis cache (5-min TTL)
+- [x] **Search tours endpoint** — `GET /api/search/tours?destination=&category=&date=` with Redis cache
 - [ ] **Pagination** — Implement Firestore cursor-based pagination on all list endpoints (default 20, max 100)
 
 ### Frontend
@@ -96,11 +96,11 @@
 *Goal: Hotel admins can manage inventory, view bookings, and receive real-time alerts.*
 
 ### Backend
-- [ ] **`GET /api/admin/hotel/bookings`** — List all bookings for admin's property, filterable by date/status/room type
-- [ ] **`GET /api/admin/hotel/occupancy`** — Aggregate booking data into date-keyed occupancy percentages (next 60 days)
-- [ ] **`GET /api/admin/hotel/alerts`** — Fetch unread alerts for this admin's UID
+- [x] **`GET /api/admin/hotel/bookings`** — List all bookings for admin's property, filterable by date/status/room type
+- [x] **`GET /api/admin/hotel/occupancy`** — Aggregate booking data into date-keyed occupancy percentages (next 60 days)
+- [x] **`GET /api/admin/hotel/alerts`** — Fetch unread alerts for this admin's UID
 - [ ] **Room inventory management endpoints** — CRUD for rooms under a property
-- [ ] **Mark alert as read** — `PATCH /api/admin/hotel/alerts/{id}`
+- [x] **Mark alert as read** — `PATCH /api/admin/hotel/alerts/{id}`
 
 ### Frontend
 - [ ] **Hotel admin dashboard** — Summary cards (total bookings, check-ins today, alerts count)
@@ -116,10 +116,10 @@
 *Goal: Tour operators can manage tours/slots, view bookings, and handle reschedules.*
 
 ### Backend
-- [ ] **Tour CRUD endpoints** — Create/update/delete tours and time slots
-- [ ] **`GET /api/operator/activities`** — All activity bookings for operator's tours
-- [ ] **`GET /api/operator/alerts`** — Disruption alerts with reschedule prompts
-- [ ] **`POST /api/operator/reschedule`** — Offer a reschedule slot → creates alert for traveler
+- [x] **Tour CRUD endpoints** — Create/update/delete tours and time slots
+- [x] **`GET /api/operator/activities`** — All activity bookings for operator's tours
+- [x] **`GET /api/operator/alerts`** — Disruption alerts with reschedule prompts
+- [x] **`POST /api/operator/reschedule`** — Offer a reschedule slot → creates alert for traveler
 
 ### Frontend
 - [ ] **Tour operator dashboard** — Summary cards (active tours, upcoming bookings, alerts)
@@ -134,15 +134,15 @@
 *Goal: One-click disruption reporting triggers atomic cascading updates + real-time SSE alerts to all stakeholders.*
 
 ### Backend
-- [ ] **`PATCH /api/itineraries/{id}/disruption`** — Disruption report endpoint:
-  - [ ] Validate disruption payload (type, original_time, new_time)
-  - [ ] Firestore batch write: update itinerary status → update booking status → mark affected activities as MISSED
-  - [ ] Write `disruption_events` document with full cascade record
-  - [ ] Write `activity_log` entry with before/after snapshots
-  - [ ] Create targeted `alerts` documents for hotel admin + tour operator
-  - [ ] Publish disruption event to Redis pub/sub channel `disruptions`
-- [ ] **SSE endpoint — `GET /api/events/stream`** — Flask streaming response subscribed to Redis pub/sub, pushes events to connected admin clients
-- [ ] **Redis pub/sub integration** — Publish disruption events on `disruptions` channel, SSE handler subscribes and forwards
+- [x] **`PATCH /api/itineraries/{id}/disruption`** — Disruption report endpoint:
+  - [x] Validate disruption payload (type, original_time, new_time)
+  - [x] Firestore batch write: update itinerary status → update booking status → mark affected activities as MISSED
+  - [x] Write `disruption_events` document with full cascade record
+  - [x] Write `activity_log` entry with before/after snapshots
+  - [x] Create targeted `alerts` documents for hotel admin + tour operator
+  - [x] Publish disruption event to Redis pub/sub channel `disruptions`
+- [x] **SSE endpoint — `GET /api/events/stream`** — Flask streaming response subscribed to Redis pub/sub, pushes events to connected admin clients
+- [x] **Redis pub/sub integration** — Publish disruption events on `disruptions` channel, SSE handler subscribes and forwards
 
 ### Frontend
 - [ ] **"Report Disruption" button** — On traveler itinerary timeline, opens disruption form (type, new time, notes)
@@ -158,19 +158,19 @@
 *Goal: Super admin has full visibility, analytics, audit log, and export capabilities.*
 
 ### Backend
-- [ ] **`GET /api/platform/overview`** — Aggregated stats: total bookings, active trips, disruption count, total revenue
-- [ ] **`GET /api/platform/disruptions`** — All disruption events with date/type/destination filters
-- [ ] **`GET /api/platform/audit-log`** — Full audit log with pagination and filters (actor, action type, date range)
-- [ ] **`GET /api/platform/export`** — Generate CSV or PDF from any filtered dataset
+- [x] **`GET /api/platform/overview`** — Aggregated stats: total bookings, active trips, disruption count, total revenue
+- [x] **`GET /api/platform/disruptions`** — All disruption events with date/type/destination filters
+- [x] **`GET /api/platform/audit-log`** — Full audit log with pagination and filters (actor, action type, date range)
+- [x] **`GET /api/platform/export`** — Generate CSV or PDF from any filtered dataset
 - [ ] **Rate limiting** — Configure `Flask-Limiter` with Redis backend (100 req/min public, 500 authenticated)
 
 ### Frontend
-- [ ] **Platform admin dashboard** — Summary cards with key metrics (bookings, revenue, disruptions, active trips)
-- [ ] **Live event feed** — Real-time SSE-powered timeline of all system events
-- [ ] **Disruption analytics panel** — Bar/line charts (Recharts) showing disruption trends by type, destination, time
-- [ ] **Audit log viewer** — Paginated, filterable table with actor, action, resource, timestamp, before/after diff
-- [ ] **Export controls** — "Export as CSV" and "Export as PDF" buttons on filtered views
-- [ ] **System filters** — Global date range, property, operator, disruption type filter bar
+- [x] **Platform admin dashboard** — Summary cards with key metrics (bookings, revenue, disruptions, active trips)
+- [x] **Live event feed** — Real-time SSE-powered timeline of all system events
+- [x] **Disruption analytics panel** — Bar/line charts (Recharts) showing disruption trends by type, destination, time
+- [x] **Audit log viewer** — Paginated, filterable table with actor, action, resource, timestamp, before/after diff
+- [x] **Export controls** — "Export as CSV" and "Export as PDF" buttons on filtered views
+- [x] **System filters** — Global date range, property, operator, disruption type filter bar
 
 ---
 
@@ -190,7 +190,7 @@
 ### Smart Late Check-Out Request
 - [ ] **Traveler: request late check-out button** — Writes `LATE_CHECKOUT_REQUEST` alert targeting hotel admin
 - [ ] **Hotel Admin: approve/deny UI** — Action card in alert feed with one-click approve/deny
-- [ ] **`PATCH /api/admin/hotel/late-checkout/{id}`** — Process approval/denial, update booking, notify traveler via SSE
+- [x] **`PATCH /api/admin/hotel/late-checkout/{id}`** — Process approval/denial, update booking, notify traveler via SSE
 - [ ] **Traveler: real-time decision display** — SSE-delivered approval/denial result on their dashboard
 
 ---
@@ -227,7 +227,7 @@
 *Goal: Ship to a live URL and rehearse the 8-minute demo script.*
 
 ### Deployment
-- [ ] **Dockerize Flask backend** — Write `Dockerfile` with Gunicorn as WSGI server
+- [x] **Dockerize Flask backend** — Write `Dockerfile` with Gunicorn as WSGI server
 - [ ] **Deploy backend** — Push to Render or Railway, set all env vars
 - [ ] **Deploy frontend** — Build React app (`npm run build`), deploy to Vercel or Netlify
 - [ ] **Redis Cloud** — Provision free-tier Redis Cloud instance, update `REDIS_URL`
