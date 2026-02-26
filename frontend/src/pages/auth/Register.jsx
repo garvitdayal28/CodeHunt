@@ -9,10 +9,10 @@ import { useAuth } from '../../contexts/AuthContext';
 import { buildBusinessProfilePayload, createEmptyBusinessForm } from '../../constants/business';
 
 export default function Register() {
+  const [role, setRole] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [role, setRole] = useState('TRAVELER');
   const [businessForm, setBusinessForm] = useState(createEmptyBusinessForm());
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -87,6 +87,17 @@ export default function Register() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
+              <Select
+                label="Role"
+                required
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+              >
+                <option value="">Select role</option>
+                <option value="TRAVELER">Traveller</option>
+                <option value="BUSINESS">Business</option>
+              </Select>
+
               <Input
                 label="Full name"
                 type="text"
@@ -115,10 +126,6 @@ export default function Register() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
-              <Select label="Role" value={role} onChange={(e) => setRole(e.target.value)}>
-                <option value="TRAVELER">Traveller</option>
-                <option value="BUSINESS">Business</option>
-              </Select>
 
               {role === 'BUSINESS' && (
                 <div className="rounded-xl border border-border p-4 bg-surface-sunken/20">

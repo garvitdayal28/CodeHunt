@@ -1,12 +1,59 @@
+import { useMemo, useState } from 'react';
+
 import Input, { Select } from '../ui/Input';
 import { BUSINESS_TYPES, GUIDE_SERVICE_OPTIONS } from '../../constants/business';
 
 export default function BusinessProfileFormFields({ form, onChange, disabled = false }) {
+  const [showOtherServiceInput, setShowOtherServiceInput] = useState(false);
+  const [newService, setNewService] = useState('');
+
+  const serviceOptions = useMemo(() => {
+    const dynamic = Array.isArray(form.customServiceOptions) ? form.customServiceOptions : [];
+    return [...new Set([...GUIDE_SERVICE_OPTIONS, ...dynamic])];
+  }, [form.customServiceOptions]);
+
+  const customServiceOptions = useMemo(
+    () => serviceOptions.filter((service) => !GUIDE_SERVICE_OPTIONS.includes(service)),
+    [serviceOptions]
+  );
+
   const handleCheckboxToggle = (service) => {
     const next = form.serviceCategories.includes(service)
       ? form.serviceCategories.filter((item) => item !== service)
       : [...form.serviceCategories, service];
     onChange('serviceCategories', next);
+  };
+
+  const addCustomService = () => {
+    const normalized = newService.trim();
+    if (!normalized) return;
+
+    if (!serviceOptions.includes(normalized)) {
+      onChange('customServiceOptions', [...(form.customServiceOptions || []), normalized]);
+    }
+
+    if (!form.serviceCategories.includes(normalized)) {
+      onChange('serviceCategories', [...form.serviceCategories, normalized]);
+    }
+
+    setNewService('');
+  };
+
+  const handleOtherToggle = (checked) => {
+    if (checked) {
+      setShowOtherServiceInput(true);
+      return;
+    }
+
+    setShowOtherServiceInput(false);
+    setNewService('');
+
+    const customSet = new Set(customServiceOptions);
+    onChange(
+      'serviceCategories',
+      form.serviceCategories.filter((item) => !customSet.has(item))
+    );
+    onChange('customServiceOptions', []);
   };
 
   return (
@@ -27,7 +74,6 @@ export default function BusinessProfileFormFields({ form, onChange, disabled = f
       <Input
         label="Business name"
         type="text"
-        required
         value={form.businessName}
         onChange={(e) => onChange('businessName', e.target.value)}
         disabled={disabled}
@@ -35,7 +81,6 @@ export default function BusinessProfileFormFields({ form, onChange, disabled = f
       <Input
         label="Phone"
         type="text"
-        required
         value={form.phone}
         onChange={(e) => onChange('phone', e.target.value)}
         disabled={disabled}
@@ -43,7 +88,6 @@ export default function BusinessProfileFormFields({ form, onChange, disabled = f
       <Input
         label="City"
         type="text"
-        required
         value={form.city}
         onChange={(e) => onChange('city', e.target.value)}
         disabled={disabled}
@@ -51,7 +95,6 @@ export default function BusinessProfileFormFields({ form, onChange, disabled = f
       <Input
         label="Address"
         type="text"
-        required={form.businessType === 'HOTEL' || form.businessType === 'RESTAURANT'}
         value={form.address}
         onChange={(e) => onChange('address', e.target.value)}
         disabled={disabled}
@@ -80,7 +123,6 @@ export default function BusinessProfileFormFields({ form, onChange, disabled = f
             label="Total rooms"
             type="number"
             min="1"
-            required
             value={form.totalRooms}
             onChange={(e) => onChange('totalRooms', e.target.value)}
             disabled={disabled}
@@ -101,7 +143,6 @@ export default function BusinessProfileFormFields({ form, onChange, disabled = f
           <Input
             label="Cuisine"
             type="text"
-            required
             value={form.cuisine}
             onChange={(e) => onChange('cuisine', e.target.value)}
             placeholder="Indian, Continental"
@@ -110,7 +151,6 @@ export default function BusinessProfileFormFields({ form, onChange, disabled = f
           <Input
             label="Opening hours"
             type="text"
-            required
             value={form.openingHours}
             onChange={(e) => onChange('openingHours', e.target.value)}
             placeholder="09:00 AM - 11:00 PM"
@@ -120,7 +160,6 @@ export default function BusinessProfileFormFields({ form, onChange, disabled = f
             label="Seating capacity"
             type="number"
             min="1"
-            required
             value={form.seatingCapacity}
             onChange={(e) => onChange('seatingCapacity', e.target.value)}
             disabled={disabled}
@@ -133,7 +172,6 @@ export default function BusinessProfileFormFields({ form, onChange, disabled = f
           <Input
             label="Driver name"
             type="text"
-            required
             value={form.driverName}
             onChange={(e) => onChange('driverName', e.target.value)}
             disabled={disabled}
@@ -141,7 +179,6 @@ export default function BusinessProfileFormFields({ form, onChange, disabled = f
           <Input
             label="Vehicle type"
             type="text"
-            required
             value={form.vehicleType}
             onChange={(e) => onChange('vehicleType', e.target.value)}
             placeholder="Sedan, SUV, Hatchback"
@@ -150,7 +187,6 @@ export default function BusinessProfileFormFields({ form, onChange, disabled = f
           <Input
             label="Vehicle number"
             type="text"
-            required
             value={form.vehicleNumber}
             onChange={(e) => onChange('vehicleNumber', e.target.value)}
             disabled={disabled}
@@ -158,7 +194,6 @@ export default function BusinessProfileFormFields({ form, onChange, disabled = f
           <Input
             label="License number"
             type="text"
-            required
             value={form.licenseNumber}
             onChange={(e) => onChange('licenseNumber', e.target.value)}
             disabled={disabled}
@@ -166,7 +201,6 @@ export default function BusinessProfileFormFields({ form, onChange, disabled = f
           <Input
             label="Service area"
             type="text"
-            required
             value={form.serviceArea}
             onChange={(e) => onChange('serviceArea', e.target.value)}
             placeholder="Goa, North Goa, South Goa"
@@ -180,7 +214,6 @@ export default function BusinessProfileFormFields({ form, onChange, disabled = f
           <Input
             label="Guide/Service name"
             type="text"
-            required
             value={form.guideName}
             onChange={(e) => onChange('guideName', e.target.value)}
             disabled={disabled}
@@ -205,7 +238,6 @@ export default function BusinessProfileFormFields({ form, onChange, disabled = f
             label="Years of experience"
             type="number"
             min="0"
-            required
             value={form.yearsExperience}
             onChange={(e) => onChange('yearsExperience', e.target.value)}
             disabled={disabled}
@@ -222,7 +254,7 @@ export default function BusinessProfileFormFields({ form, onChange, disabled = f
           <div className="space-y-2">
             <label className="block text-[13px] font-medium text-ink">Services offered</label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {GUIDE_SERVICE_OPTIONS.map((service) => (
+              {serviceOptions.map((service) => (
                 <label key={service} className="flex items-center gap-2 text-[13px] text-text-secondary">
                   <input
                     type="checkbox"
@@ -234,7 +266,33 @@ export default function BusinessProfileFormFields({ form, onChange, disabled = f
                   {service}
                 </label>
               ))}
+              <label className="flex items-center gap-2 text-[13px] text-text-secondary">
+                <input
+                  type="checkbox"
+                  checked={showOtherServiceInput || customServiceOptions.length > 0}
+                  onChange={(e) => handleOtherToggle(e.target.checked)}
+                  disabled={disabled}
+                  className="h-4 w-4 rounded border-border text-primary focus:ring-primary/20"
+                />
+                Other
+              </label>
             </div>
+            {(showOtherServiceInput || customServiceOptions.length > 0) && (
+              <Input
+                label="Add custom service"
+                type="text"
+                value={newService}
+                onChange={(e) => setNewService(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addCustomService();
+                  }
+                }}
+                placeholder="Type service and press Enter"
+                disabled={disabled}
+              />
+            )}
           </div>
 
           <Input

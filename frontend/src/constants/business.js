@@ -41,6 +41,7 @@ export function createEmptyBusinessForm() {
     yearsExperience: '',
     languages: '',
     serviceCategories: [],
+    customServiceOptions: [],
     certifications: '',
   };
 }
@@ -81,7 +82,9 @@ export function buildBusinessProfilePayload(form) {
       .split(',')
       .map((item) => item.trim())
       .filter(Boolean);
-    payload.service_categories = form.serviceCategories || [];
+    payload.service_categories = (form.serviceCategories || [])
+      .map((item) => item?.trim())
+      .filter(Boolean);
     payload.certifications = form.certifications?.trim() || '';
   }
 
@@ -95,6 +98,11 @@ export function businessProfileToForm(profile) {
 
   const details = profile.details || {};
   const businessType = profile.business_type || 'HOTEL';
+
+  const serviceCategories = (details.service_categories || [])
+    .map((item) => item?.toString().trim())
+    .filter(Boolean);
+  const customServiceOptions = serviceCategories.filter((item) => !GUIDE_SERVICE_OPTIONS.includes(item));
 
   return {
     businessType,
@@ -119,7 +127,8 @@ export function businessProfileToForm(profile) {
     personalBio: details.personal_bio || '',
     yearsExperience: details.years_experience?.toString() || '',
     languages: (details.languages || []).join(', '),
-    serviceCategories: details.service_categories || [],
+    serviceCategories,
+    customServiceOptions,
     certifications: details.certifications || '',
   };
 }
