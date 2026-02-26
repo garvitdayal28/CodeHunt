@@ -3,6 +3,9 @@ Entry point for the Flask application.
 Run with: python run.py
 """
 
+import warnings
+warnings.filterwarnings("ignore", category=Warning, module="requests")
+
 from app import create_app
 
 app = create_app()

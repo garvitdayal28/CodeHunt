@@ -1,12 +1,17 @@
 """
 Redis connection and utilities.
 Used for caching (hotel/tour listings) and pub/sub (disruption events for SSE).
+Falls back to an in-memory dict cache when Redis is unavailable.
 """
 
 import json
+import time
 import redis
 
 _redis_client = None
+
+# In-memory fallback cache: {key: (value, expires_at)}
+_mem_cache: dict = {}
 
 
 def init_redis(app):
@@ -16,12 +21,12 @@ def init_redis(app):
     redis_url = app.config.get("REDIS_URL", "redis://localhost:6379/0")
 
     try:
-        _redis_client = redis.from_url(redis_url, decode_responses=True)
+        _redis_client = redis.from_url(redis_url, decode_responses=True, socket_connect_timeout=2)
         _redis_client.ping()
         app.logger.info("Redis connected successfully.")
-    except redis.ConnectionError as e:
-        app.logger.warning(f"Redis connection failed: {e}. Caching and SSE pub/sub will be unavailable.")
+    except Exception:
         _redis_client = None
+        app.logger.info("Redis unavailable — using in-memory cache fallback.")
 
 
 def get_redis_client():
@@ -30,41 +35,53 @@ def get_redis_client():
 
 
 # ──────────────────────────────────────────────
-# Caching helpers
+# Caching helpers (Redis with in-memory fallback)
 # ──────────────────────────────────────────────
 
 def cache_get(key):
     """Get a cached value by key. Returns parsed JSON or None."""
     client = get_redis_client()
-    if client is None:
-        return None
-    try:
-        val = client.get(key)
-        return json.loads(val) if val else None
-    except Exception:
-        return None
+    if client is not None:
+        try:
+            val = client.get(key)
+            return json.loads(val) if val else None
+        except Exception:
+            pass
+    # In-memory fallback
+    entry = _mem_cache.get(key)
+    if entry:
+        value, expires_at = entry
+        if expires_at is None or time.time() < expires_at:
+            return value
+        del _mem_cache[key]
+    return None
 
 
 def cache_set(key, value, ttl=300):
-    """Cache a value with a TTL (default 5 minutes)."""
+    """Cache a value with a TTL in seconds (default 5 minutes)."""
     client = get_redis_client()
-    if client is None:
-        return
-    try:
-        client.setex(key, ttl, json.dumps(value))
-    except Exception:
-        pass
+    if client is not None:
+        try:
+            client.setex(key, ttl, json.dumps(value))
+            return
+        except Exception:
+            pass
+    # In-memory fallback
+    expires_at = time.time() + ttl if ttl else None
+    _mem_cache[key] = (value, expires_at)
 
 
 def cache_delete(key):
     """Delete a cached key."""
     client = get_redis_client()
-    if client is None:
-        return
-    try:
-        client.delete(key)
-    except Exception:
-        pass
+    if client is not None:
+        try:
+            client.delete(key)
+            return
+        except Exception:
+            pass
+    # In-memory fallback
+    _mem_cache.pop(key, None)
 
 
 # ──────────────────────────────────────────────

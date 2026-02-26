@@ -1,49 +1,73 @@
 """
-Gemini AI Service — Trip planning powered by Google Gemini.
-Provides destination suggestions and full itinerary generation.
+AI service powered by AWS Bedrock GPT-OSS with regional failover.
+Primary region is DEFAULT_LOCATION; FALLBACK_LOCATION is used on failure.
 """
 
-import os
 import json
 import logging
-import requests
+import os
+
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
 
 logger = logging.getLogger(__name__)
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+
+def _clean_env(value):
+    """Normalize .env values that may include spaces or surrounding quotes."""
+    if value is None:
+        return ""
+    return str(value).strip().strip("'").strip('"')
 
 
-def is_gemini_configured():
-    return bool(GEMINI_API_KEY)
+AWS_ACCESS_KEY_ID = _clean_env(os.environ.get("AWS_KEY"))
+AWS_SECRET_ACCESS_KEY = _clean_env(os.environ.get("AWS_SECRET"))
+PRIMARY_REGION = _clean_env(os.environ.get("DEFAULT_LOCATION")) or "us-east-1"
+FALLBACK_REGION = _clean_env(os.environ.get("FALLBACK_LOCATION")) or "ap-south-1"
+MODEL_ID = _clean_env(os.environ.get("GPT_OSS_MODEL_ID")) or "openai.gpt-oss-20b-1:0"
 
 
-def _call_gemini(prompt, temperature=0.7, max_tokens=4096):
-    """Call Gemini API and return the text response."""
-    if not is_gemini_configured():
-        raise ValueError("Gemini API key not configured")
+def is_ai_configured():
+    return bool(AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY and PRIMARY_REGION and FALLBACK_REGION)
 
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": temperature,
-            "maxOutputTokens": max_tokens,
-            "responseMimeType": "application/json",
+
+def _bedrock_client(region_name):
+    return boto3.client(
+        "bedrock-runtime",
+        region_name=region_name,
+        aws_access_key_id=AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    )
+
+
+def _invoke_bedrock(prompt, temperature=0.7, max_tokens=4096):
+    """Invoke GPT-OSS in the primary region and fail over to fallback region if needed."""
+    if not is_ai_configured():
+        raise ValueError("AI model is not configured")
+
+    body = {
+        "messages": [{"role": "user", "content": [{"text": prompt}]}],
+        "inferenceConfig": {
+            "temperature": float(temperature),
+            "maxTokens": int(max_tokens),
         },
     }
 
-    resp = requests.post(
-        f"{GEMINI_URL}?key={GEMINI_API_KEY}",
-        json=payload,
-        headers={"Content-Type": "application/json"},
-        timeout=30,
-    )
-    resp.raise_for_status()
-    data = resp.json()
+    last_error = None
+    for region in [PRIMARY_REGION, FALLBACK_REGION]:
+        try:
+            client = _bedrock_client(region)
+            response = client.converse(
+                modelId=MODEL_ID,
+                messages=body["messages"],
+                inferenceConfig=body["inferenceConfig"],
+            )
+            return response["output"]["message"]["content"][0]["text"]
+        except (ClientError, BotoCoreError, KeyError, IndexError, TypeError) as exc:
+            logger.warning(f"Bedrock invoke failed in region={region}: {exc}")
+            last_error = exc
 
-    # Extract text from Gemini response
-    text = data["candidates"][0]["content"]["parts"][0]["text"]
-    return text
+    raise RuntimeError(f"Bedrock failed in both regions: {last_error}")
 
 
 def suggest_destinations(query, count=6):
@@ -57,7 +81,7 @@ User query: "{query}"
 
 Return exactly {count} destination suggestions as a JSON array. Each item must have:
 - "name": destination name (city/region + country)
-- "tagline": a catchy one-liner (max 8 words)  
+- "tagline": a catchy one-liner (max 8 words)
 - "description": 2 sentences about why it's great
 - "best_for": array of 2-3 tags like "Beaches", "Culture", "Adventure", "Food", "Nightlife", "Nature", "History", "Romance"
 - "best_months": best months to visit (e.g. "Oct - Mar")
@@ -67,11 +91,11 @@ Return exactly {count} destination suggestions as a JSON array. Each item must h
 Return ONLY the JSON array, no markdown or extra text."""
 
     try:
-        text = _call_gemini(prompt, temperature=0.8)
+        text = _invoke_bedrock(prompt, temperature=0.8)
         destinations = json.loads(text)
         return destinations[:count]
-    except Exception as e:
-        logger.error(f"Gemini destination suggestion failed: {e}")
+    except Exception as exc:
+        logger.error(f"AI destination suggestion failed: {exc}")
         return None
 
 
@@ -144,9 +168,9 @@ Make it realistic, specific, and actionable. Use real place names.
 Return ONLY the JSON object, no markdown."""
 
     try:
-        text = _call_gemini(prompt, temperature=0.7, max_tokens=8192)
+        text = _invoke_bedrock(prompt, temperature=0.7, max_tokens=8192)
         plan = json.loads(text)
         return plan
-    except Exception as e:
-        logger.error(f"Gemini trip planning failed: {e}")
+    except Exception as exc:
+        logger.error(f"AI trip planning failed: {exc}")
         return None

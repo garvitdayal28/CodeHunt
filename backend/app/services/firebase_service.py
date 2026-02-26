@@ -36,8 +36,9 @@ def init_firebase(app):
             cred = credentials.Certificate(service_account_info)
     else:
         # Local development — look for serviceAccount.json
+        # __file__ is app/services/firebase_service.py, so go up 3 levels to backend/
         key_path = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "serviceAccount.json"
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "serviceAccount.json"
         )
         if os.path.exists(key_path):
             cred = credentials.Certificate(key_path)
