@@ -186,14 +186,12 @@ def get_itinerary(itinerary_id):
 @require_auth
 @require_role("TRAVELER")
 def create_booking():
-    """Create a hotel booking linked to an itinerary."""
+    """Create a hotel booking, optionally linked to an itinerary."""
     data = request.get_json()
     if not data:
         return error_response("INVALID_BODY", "Request body must be JSON.", 400)
 
     itinerary_id = data.get("itinerary_id")
-    if not itinerary_id:
-        return error_response("MISSING_FIELDS", "itinerary_id is required.", 400)
 
     check_in_raw = data.get("check_in_date")
     check_out_raw = data.get("check_out_date")
@@ -211,9 +209,10 @@ def create_booking():
     uid = g.current_user["uid"]
     traveler_name = g.current_user["claims"].get("name", "")
 
-    _, itinerary_error = _get_itinerary_for_traveler(db, itinerary_id, uid)
-    if itinerary_error:
-        return itinerary_error
+    if itinerary_id:
+        _, itinerary_error = _get_itinerary_for_traveler(db, itinerary_id, uid)
+        if itinerary_error:
+            return itinerary_error
 
     hotel_owner_uid = str(data.get("hotel_owner_uid") or "").strip()
     room_type_id = str(data.get("room_type_id") or "").strip()
@@ -282,7 +281,6 @@ def create_booking():
         booking_data = {
             "traveler_uid": uid,
             "traveler_name": traveler_name,
-            "itinerary_id": itinerary_id,
             "hotel_owner_uid": hotel_owner_uid,
             "property_id": str(data.get("property_id") or hotel_owner_uid),
             "property_name": property_name,
@@ -301,6 +299,8 @@ def create_booking():
             "created_at": now_iso,
             "updated_at": now_iso,
         }
+        if itinerary_id:
+            booking_data["itinerary_id"] = itinerary_id
     else:
         required_legacy = ["property_id", "room_type"]
         for field in required_legacy:
@@ -310,7 +310,6 @@ def create_booking():
         booking_data = {
             "traveler_uid": uid,
             "traveler_name": traveler_name,
-            "itinerary_id": itinerary_id,
             "property_id": data["property_id"],
             "property_name": data.get("property_name", ""),
             "room_type": data["room_type"],
@@ -323,14 +322,20 @@ def create_booking():
             "created_at": now_iso,
             "updated_at": now_iso,
         }
+        if itinerary_id:
+            booking_data["itinerary_id"] = itinerary_id
 
-    doc_ref = (
-        db.collection("itineraries")
-        .document(itinerary_id)
-        .collection("bookings")
-        .add(booking_data)
-    )
-    booking_data["id"] = doc_ref[1].id
+    if itinerary_id:
+        doc_ref = (
+            db.collection("itineraries")
+            .document(itinerary_id)
+            .collection("bookings")
+            .add(booking_data)
+        )
+        booking_data["id"] = doc_ref[1].id
+    else:
+        doc_ref = db.collection("bookings").add(booking_data)
+        booking_data["id"] = doc_ref[1].id
 
     db.collection("activity_log").add(
         {
@@ -351,7 +356,7 @@ def create_booking():
 @require_auth
 @require_role("TRAVELER", "PLATFORM_ADMIN")
 def get_my_hotel_bookings():
-    """Return the logged-in traveler's hotel bookings across all itineraries."""
+    """Return the logged-in traveler's hotel bookings across all itineraries and standalone."""
     db = get_firestore_client()
     uid = g.current_user["uid"]
 
@@ -371,6 +376,11 @@ def get_my_hotel_bookings():
             booking["itinerary_start_date"] = itinerary.get("start_date")
             booking["itinerary_end_date"] = itinerary.get("end_date")
             bookings.append(booking)
+
+    for booking_doc in db.collection("bookings").where("traveler_uid", "==", uid).stream():
+        booking = booking_doc.to_dict() or {}
+        booking["id"] = booking_doc.id
+        bookings.append(booking)
 
     bookings.sort(
         key=lambda item: (

@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Bell,
   Building2,
+  Calendar,
   ChevronDown,
   LayoutDashboard,
   Car,
@@ -24,10 +25,11 @@ const roleNavigation = {
   TRAVELER: [
     { name: 'Dashboard', href: '/traveler/dashboard', icon: LayoutDashboard },
     { name: 'My Trips', href: '/traveler/itineraries', icon: MapPin },
-    { name: 'Cab', href: '/traveler/cabs', icon: Car },
-    { name: 'Profile', href: '/traveler/profile', icon: UserCircle2 },
     { name: 'Hotels', href: '/traveler/hotels', icon: Search, aliases: ['/traveler/search', '/traveler/search/hotels', '/traveler/hotel/'] },
+    { name: 'My Bookings', href: '/traveler/bookings', icon: Calendar },
+    { name: 'Cab', href: '/traveler/cabs', icon: Car },
     { name: 'AI Planner', href: '/traveler/ai-planner', icon: Sparkles },
+    { name: 'Profile', href: '/traveler/profile', icon: UserCircle2 },
   ],
   BUSINESS: [
     { name: 'Dashboard', href: '/business/dashboard', icon: LayoutDashboard },

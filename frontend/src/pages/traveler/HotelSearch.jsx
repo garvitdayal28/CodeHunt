@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search } from 'lucide-react';
 
 import api from '../../api/axios';
-import HotelBookingsTable from '../../components/hotel/HotelBookingsTable';
 import HotelCard from '../../components/hotel/HotelCard';
 import HotelFiltersBar from '../../components/hotel/HotelFiltersBar';
 
@@ -41,8 +40,6 @@ export default function HotelSearch() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState('');
-  const [myBookings, setMyBookings] = useState([]);
-  const [bookingsLoading, setBookingsLoading] = useState(false);
 
   const doSearch = async (activeFilters) => {
     if (!activeFilters.destination?.trim()) return;
@@ -60,22 +57,6 @@ export default function HotelSearch() {
       setLoading(false);
     }
   };
-
-  const loadMyBookings = async () => {
-    try {
-      setBookingsLoading(true);
-      const res = await api.get('/bookings/hotels/me');
-      setMyBookings(res?.data?.data || []);
-    } catch {
-      setMyBookings([]);
-    } finally {
-      setBookingsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadMyBookings();
-  }, []);
 
   useEffect(() => {
     if (filters.destination) doSearch(filters);
@@ -130,19 +111,6 @@ export default function HotelSearch() {
           <p className="text-body-sm text-text-secondary mt-1">Try adjusting city, guests, rooms, or price filters.</p>
         </div>
       ) : null}
-
-      <div className="rounded-xl border border-border bg-white p-4">
-        {bookingsLoading ? (
-          <div className="h-28 bg-surface-sunken rounded-lg animate-pulse" />
-        ) : (
-          <HotelBookingsTable
-            title="My Hotel Bookings"
-            bookings={myBookings}
-            mode="traveler"
-            emptyMessage="No hotel bookings yet. Search and reserve your stay."
-          />
-        )}
-      </div>
     </div>
   );
 }

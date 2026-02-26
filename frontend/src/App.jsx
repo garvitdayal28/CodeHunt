@@ -21,6 +21,7 @@ import TravelerDashboard from './pages/traveler/Dashboard';
 import HotelDetail from './pages/traveler/HotelDetail';
 import HotelSearch from './pages/traveler/HotelSearch';
 import ItineraryDetail from './pages/traveler/ItineraryDetail';
+import MyBookings from './pages/traveler/MyBookings';
 import MyTrips from './pages/traveler/MyTrips';
 import TravelerProfile from './pages/traveler/Profile';
 import TourSearch from './pages/traveler/TourSearch';
@@ -77,6 +78,7 @@ function App() {
               <Route path="/traveler/itineraries/:id" element={<ItineraryDetail />} />
               <Route path="/traveler/hotels" element={<HotelSearch />} />
               <Route path="/traveler/hotels/:id" element={<HotelDetail />} />
+              <Route path="/traveler/bookings" element={<MyBookings />} />
               <Route path="/traveler/search" element={<HotelSearch />} />
               <Route path="/traveler/search/hotels" element={<HotelSearch />} />
               <Route path="/traveler/hotel/:id" element={<HotelDetail />} />

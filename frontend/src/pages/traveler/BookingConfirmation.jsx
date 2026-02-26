@@ -12,6 +12,7 @@ export default function BookingConfirmation() {
 
   const [itineraries, setItineraries] = useState([]);
   const [selectedItineraryId, setSelectedItineraryId] = useState('');
+  const [bookWithoutItinerary, setBookWithoutItinerary] = useState(false);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -52,8 +53,8 @@ export default function BookingConfirmation() {
   const totalAmount = Math.round(baseAmount);
 
   const handleConfirm = async () => {
-    if (!selectedItineraryId) {
-      setError('Please select an itinerary first.');
+    if (!bookWithoutItinerary && !selectedItineraryId) {
+      setError('Please select an itinerary or choose to book without one.');
       return;
     }
 
@@ -61,8 +62,7 @@ export default function BookingConfirmation() {
       setSubmitting(true);
       setError('');
 
-      await api.post('/bookings', {
-        itinerary_id: selectedItineraryId,
+      const payload = {
         hotel_owner_uid: booking.hotelOwnerUid || hotel.hotel_owner_uid || hotel.id,
         room_type_id: booking.roomTypeId,
         rooms_booked: Number(booking.roomsBooked || 1),
@@ -73,7 +73,13 @@ export default function BookingConfirmation() {
         property_id: booking.propertyId || hotel.id,
         property_name: hotel.name,
         room_type: booking.roomType,
-      });
+      };
+
+      if (!bookWithoutItinerary && selectedItineraryId) {
+        payload.itinerary_id = selectedItineraryId;
+      }
+
+      await api.post('/bookings', payload);
 
       setSuccess(true);
     } catch (err) {
@@ -93,14 +99,16 @@ export default function BookingConfirmation() {
         </div>
         <h1 className="text-display-md text-ink mb-2">Booking Confirmed</h1>
         <p className="text-body-md text-text-secondary mb-8">
-          Your stay at <span className="font-semibold text-ink">{hotel.name}</span> is now linked to your itinerary.
+          Your stay at <span className="font-semibold text-ink">{hotel.name}</span> is now {selectedItineraryId ? 'linked to your itinerary' : 'confirmed'}.
         </p>
         <div className="space-y-3">
-          <Button onClick={() => navigate(`/traveler/itineraries/${selectedItineraryId}`)} className="w-full" size="lg">
-            View Itinerary
-          </Button>
-          <Button onClick={() => navigate('/traveler/hotels')} variant="secondary" className="w-full">
-            Search More Hotels
+          {selectedItineraryId && (
+            <Button onClick={() => navigate(`/traveler/itineraries/${selectedItineraryId}`)} className="w-full" size="lg">
+              View Itinerary
+            </Button>
+          )}
+          <Button onClick={() => navigate('/traveler/hotels')} variant={selectedItineraryId ? 'secondary' : 'primary'} className="w-full">
+            {selectedItineraryId ? 'Search More Hotels' : 'View My Bookings'}
           </Button>
         </div>
       </div>
@@ -152,39 +160,56 @@ export default function BookingConfirmation() {
         <div className="bg-white border border-border rounded-2xl shadow-sm p-6 flex flex-col justify-between">
           <div className="space-y-5">
             <div>
-              <h3 className="text-label-lg text-ink mb-2">Select itinerary</h3>
+              <h3 className="text-label-lg text-ink mb-2">Link to itinerary (optional)</h3>
               {loading ? (
                 <div className="h-20 bg-surface-sunken rounded-lg animate-pulse" />
               ) : itineraries.length === 0 ? (
                 <div className="bg-surface-sunken p-4 rounded-xl text-center">
                   <p className="text-[13px] text-text-secondary mb-2">No itinerary found.</p>
                   <Link to="/traveler/itineraries/new" className="text-[13px] font-semibold text-primary hover:underline">
-                    Create itinerary first
+                    Create itinerary
                   </Link>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {itineraries.map((itinerary) => (
-                    <label
-                      key={itinerary.id}
-                      className={`flex items-start gap-3 p-3 border rounded-xl cursor-pointer ${
-                        selectedItineraryId === itinerary.id ? 'border-primary bg-primary-soft/20' : 'border-border'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="itinerary"
-                        checked={selectedItineraryId === itinerary.id}
-                        onChange={() => setSelectedItineraryId(itinerary.id)}
-                        className="mt-1"
-                      />
-                      <div>
-                        <p className="text-label-md text-ink">{itinerary.destination}</p>
-                        <p className="text-[12px] text-text-muted">{itinerary.start_date} to {itinerary.end_date}</p>
-                      </div>
-                    </label>
-                  ))}
-                </div>
+                <>
+                  <div className="space-y-2 mb-3">
+                    {itineraries.map((itinerary) => (
+                      <label
+                        key={itinerary.id}
+                        className={`flex items-start gap-3 p-3 border rounded-xl cursor-pointer ${
+                          !bookWithoutItinerary && selectedItineraryId === itinerary.id ? 'border-primary bg-primary-soft/20' : 'border-border'
+                        } ${bookWithoutItinerary ? 'opacity-50' : ''}`}
+                      >
+                        <input
+                          type="radio"
+                          name="itinerary"
+                          checked={!bookWithoutItinerary && selectedItineraryId === itinerary.id}
+                          onChange={() => {
+                            setSelectedItineraryId(itinerary.id);
+                            setBookWithoutItinerary(false);
+                          }}
+                          disabled={bookWithoutItinerary}
+                          className="mt-1"
+                        />
+                        <div>
+                          <p className="text-label-md text-ink">{itinerary.destination}</p>
+                          <p className="text-[12px] text-text-muted">{itinerary.start_date} to {itinerary.end_date}</p>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                  <label className="flex items-center gap-2 p-3 border border-border rounded-xl cursor-pointer hover:bg-surface-sunken/30">
+                    <input
+                      type="checkbox"
+                      checked={bookWithoutItinerary}
+                      onChange={(e) => {
+                        setBookWithoutItinerary(e.target.checked);
+                        if (e.target.checked) setSelectedItineraryId('');
+                      }}
+                    />
+                    <span className="text-[13px] text-text-secondary">Book without linking to itinerary</span>
+                  </label>
+                </>
               )}
             </div>
 
@@ -204,7 +229,7 @@ export default function BookingConfirmation() {
             <Button
               onClick={handleConfirm}
               loading={submitting}
-              disabled={!selectedItineraryId || itineraries.length === 0}
+              disabled={!bookWithoutItinerary && !selectedItineraryId}
               className="w-full"
               size="lg"
             >
