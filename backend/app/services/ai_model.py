@@ -40,18 +40,22 @@ def _bedrock_client(region_name):
     )
 
 
-def _invoke_bedrock(prompt, temperature=0.7, max_tokens=4096):
-    """Invoke GPT-OSS in the primary region and fail over to fallback region if needed."""
-    if not is_ai_configured():
-        raise ValueError("AI model is not configured")
-
-    body = {
+def _build_converse_body(prompt, temperature=0.7, max_tokens=4096):
+    return {
         "messages": [{"role": "user", "content": [{"text": prompt}]}],
         "inferenceConfig": {
             "temperature": float(temperature),
             "maxTokens": int(max_tokens),
         },
     }
+
+
+def _invoke_bedrock(prompt, temperature=0.7, max_tokens=4096):
+    """Invoke GPT-OSS in the primary region and fail over to fallback region if needed."""
+    if not is_ai_configured():
+        raise ValueError("AI model is not configured")
+
+    body = _build_converse_body(prompt, temperature=temperature, max_tokens=max_tokens)
 
     last_error = None
     for region in [PRIMARY_REGION, FALLBACK_REGION]:
@@ -75,6 +79,54 @@ def _invoke_bedrock(prompt, temperature=0.7, max_tokens=4096):
             last_error = exc
 
     raise RuntimeError(f"Bedrock failed in both regions: {last_error}")
+
+
+def invoke_bedrock_stream(prompt, on_token, temperature=0.7, max_tokens=4096):
+    """
+    Stream GPT-OSS output token chunks with regional failover.
+    on_token(chunk: str) is called for each streamed text delta.
+    Returns final concatenated text.
+    """
+    if not is_ai_configured():
+        raise ValueError("AI model is not configured")
+    if on_token is None:
+        raise ValueError("on_token callback is required")
+
+    body = _build_converse_body(prompt, temperature=temperature, max_tokens=max_tokens)
+    last_error = None
+
+    for region in [PRIMARY_REGION, FALLBACK_REGION]:
+        text_parts = []
+        try:
+            client = _bedrock_client(region)
+            response = client.converse_stream(
+                modelId=MODEL_ID,
+                messages=body["messages"],
+                inferenceConfig=body["inferenceConfig"],
+            )
+            stream = response.get("stream", [])
+            for event in stream:
+                if not isinstance(event, dict):
+                    continue
+                content_delta = event.get("contentBlockDelta") or {}
+                delta = content_delta.get("delta") or {}
+                text = delta.get("text")
+                if isinstance(text, str) and text:
+                    text_parts.append(text)
+                    on_token(text)
+
+            final_text = "".join(text_parts).strip()
+            if not final_text:
+                raise ValueError("No streamed text returned by model")
+            return final_text
+        except (ClientError, BotoCoreError, KeyError, IndexError, TypeError) as exc:
+            logger.warning("Bedrock stream failed in region=%s: %s", region, exc)
+            last_error = exc
+        except ValueError as exc:
+            logger.warning("Bedrock stream parse failed in region=%s: %s", region, exc)
+            last_error = exc
+
+    raise RuntimeError(f"Bedrock streaming failed in both regions: {last_error}")
 
 
 def _extract_text_from_converse_response(response):

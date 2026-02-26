@@ -2,22 +2,39 @@
 Business Blueprint - business profile retrieval and updates.
 """
 
+import logging
 from datetime import datetime
 
 from flask import Blueprint, g, request
 
 from app.services.cloudinary_service import upload_image
 from app.services.firebase_service import get_firestore_client
+from app.services.rag_indexer_service import delete_entity, upsert_entity
 from app.services.redis_service import cache_delete_prefix
 from app.utils.auth import require_auth, require_role
 from app.utils.business_profile import BUSINESS_ROLE, validate_and_normalize_business_profile
 from app.utils.responses import error_response, success_response
 
 business_bp = Blueprint("business", __name__, url_prefix="/api/business")
+logger = logging.getLogger(__name__)
 
 GUIDE_SERVICE_TYPES = {"ACTIVITY", "GUIDED_TOUR"}
 GUIDE_PRICE_UNITS = {"PER_PERSON", "PER_GROUP"}
 GUIDE_DIFFICULTY_LEVELS = {"EASY", "MODERATE", "HARD"}
+
+
+def _sync_rag_upsert(entity_type, entity_id):
+    try:
+        upsert_entity(entity_type, entity_id)
+    except Exception as exc:
+        logger.warning("RAG upsert failed for %s:%s -> %s", entity_type, entity_id, exc)
+
+
+def _sync_rag_delete(entity_type, entity_id):
+    try:
+        delete_entity(entity_type, entity_id)
+    except Exception as exc:
+        logger.warning("RAG delete failed for %s:%s -> %s", entity_type, entity_id, exc)
 
 
 def _require_hotel_business_user(db, uid):
@@ -369,6 +386,11 @@ def update_business_profile():
 
     db = get_firestore_client()
     db.collection("users").document(uid).set(update_payload, merge=True)
+    business_type = (normalized_business_profile or {}).get("business_type")
+    if business_type == "HOTEL":
+        _sync_rag_upsert("HOTEL", uid)
+    elif business_type == "RESTAURANT":
+        _sync_rag_upsert("RESTAURANT", uid)
 
     return success_response(
         {
@@ -486,6 +508,7 @@ def create_hotel_business_room_type():
     room_ref.set(payload)
     created = room_ref.get().to_dict() or {}
     created["id"] = room_ref.id
+    _sync_rag_upsert("HOTEL", uid)
     return success_response(created, 201, "Room type created successfully.")
 
 
@@ -521,6 +544,7 @@ def update_hotel_business_room_type(room_id):
     room_ref.set(payload, merge=True)
     updated = room_ref.get().to_dict() or {}
     updated["id"] = room_id
+    _sync_rag_upsert("HOTEL", uid)
     return success_response(updated, 200, "Room type updated successfully.")
 
 
@@ -541,6 +565,7 @@ def delete_hotel_business_room_type(room_id):
         return error_response("NOT_FOUND", "Room type not found.", 404)
 
     room_ref.delete()
+    _sync_rag_upsert("HOTEL", uid)
     return success_response({"id": room_id}, 200, "Room type deleted successfully.")
 
 
@@ -766,6 +791,7 @@ def create_restaurant_menu_item():
     item_ref.set(payload)
     created = item_ref.get().to_dict() or {}
     created["id"] = item_ref.id
+    _sync_rag_upsert("RESTAURANT", uid)
     return success_response(created, 201, "Menu item created successfully.")
 
 
@@ -801,6 +827,7 @@ def update_restaurant_menu_item(item_id):
     item_ref.set(payload, merge=True)
     updated = item_ref.get().to_dict() or {}
     updated["id"] = item_id
+    _sync_rag_upsert("RESTAURANT", uid)
     return success_response(updated, 200, "Menu item updated successfully.")
 
 
@@ -821,6 +848,7 @@ def delete_restaurant_menu_item(item_id):
         return error_response("NOT_FOUND", "Menu item not found.", 404)
 
     item_ref.delete()
+    _sync_rag_upsert("RESTAURANT", uid)
     return success_response({"id": item_id}, 200, "Menu item deleted successfully.")
 
 
@@ -952,6 +980,7 @@ def create_guide_service():
 
     service_ref.set(payload)
     _invalidate_tours_cache()
+    _sync_rag_upsert("GUIDE_SERVICE", f"{uid}:{service_ref.id}")
     return success_response(payload, 201, "Guide service created successfully.")
 
 
@@ -998,6 +1027,7 @@ def update_guide_service(service_id):
 
     service_ref.set(payload)
     _invalidate_tours_cache()
+    _sync_rag_upsert("GUIDE_SERVICE", f"{uid}:{service_id}")
     return success_response(payload, 200, "Guide service updated successfully.")
 
 
@@ -1019,4 +1049,5 @@ def delete_guide_service(service_id):
 
     service_ref.delete()
     _invalidate_tours_cache()
+    _sync_rag_delete("GUIDE_SERVICE", f"{uid}:{service_id}")
     return success_response({"id": service_id}, 200, "Guide service deleted successfully.")

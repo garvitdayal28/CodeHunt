@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Search, MapPin, Calendar, Users, Star, ArrowRight } from 'lucide-react';
 import Button from '../../components/ui/Button';
+import RealtimeTripPlanner from '../../components/traveler/RealtimeTripPlanner';
 
 const destinations = [
   {
@@ -145,6 +146,10 @@ export default function TravelerDashboard() {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="px-4 sm:px-6 pb-10">
+        <RealtimeTripPlanner />
       </div>
     </div>
   );

@@ -36,6 +36,7 @@ from app.utils.rides import (
 
 socketio = SocketIO()
 _socket_users = {}
+_planner_socket_users = {}
 _request_timers = {}
 _quote_timers = {}
 _init_lock = threading.Lock()
@@ -44,6 +45,18 @@ _handlers_registered = False
 
 def get_socketio():
     return socketio
+
+
+def emit_planner_event(session_id, event_name, payload):
+    """Emit a planner event to subscribed clients for one session."""
+    if not session_id or not event_name:
+        return
+    socketio.emit(
+        event_name,
+        payload or {},
+        room=f"planner_session:{session_id}",
+        namespace="/planner",
+    )
 
 
 def _city_key(city):
@@ -908,5 +921,66 @@ def init_socketio(app):
             _, err_code, err_message = _end_ride_internal(ride_id, ctx["uid"])
             if err_code:
                 _emit_error(err_message, err_code, request.sid)
+
+        @socketio.on("connect", namespace="/planner")
+        def on_planner_connect(auth):
+            token = (auth or {}).get("token")
+            if not token:
+                return False
+
+            decoded = verify_firebase_token(token)
+            if decoded is None:
+                return False
+
+            uid = decoded.get("uid")
+            if not uid:
+                return False
+
+            _planner_socket_users[request.sid] = {
+                "uid": uid,
+                "role": decoded.get("role", "TRAVELER"),
+            }
+            join_room(f"planner_user:{uid}")
+            emit("planner:connected", {"connected": True, "uid": uid})
+            return True
+
+        @socketio.on("disconnect", namespace="/planner")
+        def on_planner_disconnect():
+            _planner_socket_users.pop(request.sid, None)
+
+        @socketio.on("planner:subscribe", namespace="/planner")
+        def on_planner_subscribe(data):
+            ctx = _planner_socket_users.get(request.sid)
+            if not ctx:
+                emit("planner:error", {"error": "UNAUTHORIZED", "message": "Planner socket not authenticated."})
+                return
+
+            session_id = str((data or {}).get("session_id") or "").strip()
+            if not session_id:
+                emit("planner:error", {"error": "MISSING_SESSION_ID", "message": "session_id is required."})
+                return
+
+            db = get_firestore_client()
+            session_doc = db.collection("planner_sessions").document(session_id).get()
+            if not session_doc.exists:
+                emit("planner:error", {"error": "NOT_FOUND", "message": "Planner session not found."})
+                return
+
+            session = session_doc.to_dict() or {}
+            if ctx.get("role") != "PLATFORM_ADMIN" and session.get("traveler_uid") != ctx.get("uid"):
+                emit("planner:error", {"error": "FORBIDDEN", "message": "Not allowed to subscribe to this session."})
+                return
+
+            join_room(f"planner_session:{session_id}")
+            emit("planner:subscribed", {"session_id": session_id})
+
+        @socketio.on("planner:unsubscribe", namespace="/planner")
+        def on_planner_unsubscribe(data):
+            session_id = str((data or {}).get("session_id") or "").strip()
+            if not session_id:
+                emit("planner:error", {"error": "MISSING_SESSION_ID", "message": "session_id is required."})
+                return
+            leave_room(f"planner_session:{session_id}")
+            emit("planner:unsubscribed", {"session_id": session_id})
 
         _handlers_registered = True

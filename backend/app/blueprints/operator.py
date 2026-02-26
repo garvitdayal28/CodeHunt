@@ -6,6 +6,7 @@ from flask import Blueprint, request, g
 from app.utils.auth import require_auth, require_role
 from app.utils.responses import success_response, error_response
 from app.services.firebase_service import get_firestore_client
+from app.services.rag_indexer_service import upsert_entity
 from app.services.redis_service import publish_event
 from datetime import datetime
 
@@ -61,6 +62,10 @@ def create_tour():
 
     doc_ref = db.collection("tours").add(tour_data)
     tour_data["id"] = doc_ref[1].id
+    try:
+        upsert_entity("TOUR", tour_data["id"])
+    except Exception:
+        pass
 
     return success_response(tour_data, 201, "Tour created.")
 
