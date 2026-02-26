@@ -62,12 +62,55 @@ def _invoke_bedrock(prompt, temperature=0.7, max_tokens=4096):
                 messages=body["messages"],
                 inferenceConfig=body["inferenceConfig"],
             )
-            return response["output"]["message"]["content"][0]["text"]
+            text = _extract_text_from_converse_response(response)
+            if not text:
+                raise ValueError("No text content returned by model")
+            return text
         except (ClientError, BotoCoreError, KeyError, IndexError, TypeError) as exc:
             logger.warning(f"Bedrock invoke failed in region={region}: {exc}")
             last_error = exc
+        except ValueError as exc:
+            # Parsing/empty-output issues should also trigger regional fallback.
+            logger.warning(f"Bedrock response parse failed in region={region}: {exc}")
+            last_error = exc
 
     raise RuntimeError(f"Bedrock failed in both regions: {last_error}")
+
+
+def _extract_text_from_converse_response(response):
+    """
+    Extract assistant text from Bedrock Converse responses.
+    Handles mixed content blocks (e.g., reasoning/tool blocks before text).
+    """
+    content_blocks = (
+        response.get("output", {})
+        .get("message", {})
+        .get("content", [])
+    )
+
+    if not isinstance(content_blocks, list):
+        raise ValueError("Unexpected Converse response shape: content is not a list")
+
+    text_parts = []
+    for block in content_blocks:
+        if not isinstance(block, dict):
+            continue
+
+        # Common shape: {"text": "..."}
+        text_value = block.get("text")
+        if isinstance(text_value, str) and text_value.strip():
+            text_parts.append(text_value)
+            continue
+
+        # Some models return nested structures with text fields.
+        for nested_key in ("reasoningContent", "toolResult", "outputText"):
+            nested = block.get(nested_key)
+            if isinstance(nested, dict):
+                nested_text = nested.get("text")
+                if isinstance(nested_text, str) and nested_text.strip():
+                    text_parts.append(nested_text)
+
+    return "\n".join(text_parts).strip()
 
 
 def suggest_destinations(query, count=6):
