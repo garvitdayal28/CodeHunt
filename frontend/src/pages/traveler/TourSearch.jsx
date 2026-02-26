@@ -6,6 +6,7 @@ import api from '../../api/axios';
 import Button from '../../components/ui/Button';
 import Input, { Select } from '../../components/ui/Input';
 import Modal from '../../components/ui/Modal';
+import HeroHeader from '../../components/ui/HeroHeader';
 
 const categoryColors = {
   Adventure: 'bg-primary-soft text-primary',
@@ -200,10 +201,11 @@ export default function TourSearch() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-display-md text-ink">Find Tours & Activities</h1>
-        <p className="text-body-sm text-text-secondary mt-1">Discover and book experiences at your destination.</p>
-      </div>
+      <HeroHeader
+        title="Adventure Awaits"
+        description="Discover hidden gems, book guided tours, and create unforgettable memories at your next destination."
+        image="https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=1600&h=400&fit=crop&q=80"
+      />
 
       {error && (
         <div className="bg-danger-soft border border-danger/20 rounded-lg p-3">

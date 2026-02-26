@@ -1,8 +1,41 @@
+import { useState } from "react";
+import { Plane, Train, Search, MapPin, Calendar, Users, ArrowRight, ExternalLink } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import api from "../../api/axios";
+import Button from "../../components/ui/Button";
+import Card from "../../components/ui/Card";
+import Skeleton from "../../components/ui/Skeleton";
+import EmptyState from "../../components/ui/EmptyState";
 import HeroHeader from "../../components/ui/HeroHeader";
 
 export default function TransportSearch() {
     const [mode, setMode] = useState("FLIGHT"); // FLIGHT or TRAIN
-    // ... (rest of the state)
+    const [origin, setOrigin] = useState("");
+    const [destination, setDestination] = useState("");
+    const [date, setDate] = useState("");
+    const [travelers, setTravelers] = useState(1);
+    const [loading, setLoading] = useState(false);
+    const [results, setResults] = useState([]);
+    const [searched, setSearched] = useState(false);
+
+    const handleSearch = async (e) => {
+        e.preventDefault();
+        if (!origin || !destination) return;
+
+        setLoading(true);
+        setSearched(true);
+        try {
+            const res = await api.get("/search/transport", {
+                params: { mode, origin, destination, date, travelers }
+            });
+            setResults(res.data?.data || []);
+        } catch (err) {
+            console.error("Transport search failed:", err);
+            setResults([]);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <div className="max-w-6xl mx-auto space-y-8 animate-fade-in">
