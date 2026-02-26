@@ -85,10 +85,10 @@
 - [x] **Create itinerary form** — Destination picker, date range selector
 - [x] **Hotel search & results page** — Search filters, paginated result cards with availability
 - [x] **Tour search & results page** — Category/destination filters, result cards with time slots
-- [ ] **Hotel detail page** — Room types, pricing, availability calendar, "Book" button
+- [x] **Hotel detail page** — Room types, pricing, availability calendar, "Book" button
 - [ ] **Tour detail page** — Description, time slots with remaining capacity, "Book" button
 - [x] **Unified itinerary timeline** — Chronological view of all bookings + activities with lifecycle status badges
-- [ ] **Booking confirmation flow** — Summary → Confirm → Success with booking ID
+- [x] **Booking confirmation flow** — Summary → Confirm → Success with booking ID
 
 ### External Hotel API Integration (Enhancement)
 - [x] **Sign up for RapidAPI** — Get Booking.com API key, add `RAPIDAPI_KEY` to backend `.env`

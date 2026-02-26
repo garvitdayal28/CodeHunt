@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Search, Star, MapPin, Wifi, Waves } from 'lucide-react';
 import api from '../../api/axios';
 import Button from '../../components/ui/Button';
@@ -12,6 +12,14 @@ export default function HotelSearch() {
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
 
+  const navigate = useNavigate();
+
+  const handleHotelClick = (hotel) => {
+    navigate(`/traveler/hotel/${hotel.id || hotel.external_hotel_id || encodeURIComponent(hotel.name)}`, { 
+      state: { hotel } 
+    });
+  };
+
   const doSearch = async (dest) => {
     if (!dest) return;
     setLoading(true);
@@ -22,9 +30,9 @@ export default function HotelSearch() {
     } catch {
       // Fallback demo data
       setHotels([
-        { id: '1', name: 'The Grand Horizon', location: 'Goa, India', star_rating: 5, price_range: { min: 8000, max: 25000 }, amenities: ['Pool', 'Spa', 'Wi-Fi', 'Beach Access'], image_url: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=500&h=300&fit=crop' },
-        { id: '2', name: 'Mountain Retreat Lodge', location: 'Manali, India', star_rating: 4, price_range: { min: 3000, max: 12000 }, amenities: ['Fireplace', 'Hiking', 'Wi-Fi'], image_url: 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=500&h=300&fit=crop' },
-        { id: '3', name: 'Seaside Villa Resort', location: 'Bali, Indonesia', star_rating: 5, price_range: { min: 15000, max: 50000 }, amenities: ['Private Pool', 'Spa', 'Butler', 'Beach'], image_url: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=500&h=300&fit=crop' },
+        { id: '1', name: 'The Grand Horizon', location: 'Goa, India', star_rating: 5, price_range: { min: 8000, max: 25000 }, price_per_night: 8000, amenities: ['Pool', 'Spa', 'Wi-Fi', 'Beach Access'], image_url: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=500&h=300&fit=crop' },
+        { id: '2', name: 'Mountain Retreat Lodge', location: 'Manali, India', star_rating: 4, price_range: { min: 3000, max: 12000 }, price_per_night: 3000, amenities: ['Fireplace', 'Hiking', 'Wi-Fi'], image_url: 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=500&h=300&fit=crop' },
+        { id: '3', name: 'Seaside Villa Resort', location: 'Bali, Indonesia', star_rating: 5, price_range: { min: 15000, max: 50000 }, price_per_night: 15000, amenities: ['Private Pool', 'Spa', 'Butler', 'Beach'], image_url: 'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=500&h=300&fit=crop' },
       ]);
     } finally { setLoading(false); }
   };
@@ -59,6 +67,7 @@ export default function HotelSearch() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {hotels.map((hotel, i) => (
             <div key={hotel.id}
+              onClick={() => handleHotelClick(hotel)}
               className={`group bg-white border border-border rounded-xl overflow-hidden hover:shadow-md transition-shadow cursor-pointer animate-fade-in-up stagger-${i + 1}`}
             >
               <div className="relative h-44 overflow-hidden">
