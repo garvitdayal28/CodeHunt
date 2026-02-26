@@ -174,6 +174,8 @@ export default function CabRides() {
         const res = await api.post("/rides/geocode/suggest", {
           query: q,
           limit: 5,
+          lat: currentCoords?.lat,
+          lng: currentCoords?.lng,
         });
         setSourceSuggestions(res?.data?.data || []);
         setShowSourceSuggestions(true);
@@ -184,7 +186,7 @@ export default function CabRides() {
       }
     }, 450);
     return () => clearTimeout(timer);
-  }, [source, useCurrentLocation]);
+  }, [source, useCurrentLocation, currentCoords?.lat, currentCoords?.lng]);
 
   useEffect(() => {
     const q = destination.trim();
@@ -201,6 +203,8 @@ export default function CabRides() {
           query: q,
           city_hint: source || undefined,
           limit: 5,
+          lat: currentCoords?.lat,
+          lng: currentCoords?.lng,
         });
         setDestinationSuggestions(res?.data?.data || []);
         setShowDestinationSuggestions(true);
@@ -211,7 +215,7 @@ export default function CabRides() {
       }
     }, 450);
     return () => clearTimeout(timer);
-  }, [destination, source]);
+  }, [destination, source, currentCoords?.lat, currentCoords?.lng]);
 
   useEffect(() => {
     if (!socket) return undefined;
@@ -403,14 +407,14 @@ export default function CabRides() {
     if (useCurrentLocation) {
       const position = currentCoords
         ? {
-            coords: {
-              latitude: currentCoords.lat,
-              longitude: currentCoords.lng,
-            },
-          }
+          coords: {
+            latitude: currentCoords.lat,
+            longitude: currentCoords.lng,
+          },
+        }
         : await new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject);
-          });
+          navigator.geolocation.getCurrentPosition(resolve, reject);
+        });
       return api.post("/rides/geocode", {
         source: {
           lat: position.coords.latitude,
@@ -619,7 +623,7 @@ export default function CabRides() {
                     <button
                       type="button"
                       key={`${item.address}-${idx}`}
-                      className="w-full text-left px-3 py-2 text-[13px] text-ink hover:bg-surface-sunken"
+                      className="w-full text-left px-3 py-2.5 hover:bg-surface-sunken transition-colors border-b border-border/50 last:border-0 group"
                       onClick={() => {
                         setSource(item.address);
                         setSourceDisplayAddress(item.address);
@@ -627,7 +631,19 @@ export default function CabRides() {
                         setShowSourceSuggestions(false);
                       }}
                     >
-                      {item.address}
+                      <div className="flex items-start gap-2.5">
+                        <div className="mt-0.5 p-1 rounded-md bg-primary-soft text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                          <MapPin className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-semibold text-ink truncate">
+                            {item.name || item.address.split(',')[0]}
+                          </p>
+                          <p className="text-[11px] text-text-secondary truncate mt-0.5">
+                            {item.address}
+                          </p>
+                        </div>
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -664,13 +680,25 @@ export default function CabRides() {
                     <button
                       type="button"
                       key={`${item.address}-${idx}`}
-                      className="w-full text-left px-3 py-2 text-[13px] text-ink hover:bg-surface-sunken"
+                      className="w-full text-left px-3 py-2.5 hover:bg-surface-sunken transition-colors border-b border-border/50 last:border-0 group"
                       onClick={() => {
                         setDestination(item.address);
                         setShowDestinationSuggestions(false);
                       }}
                     >
-                      {item.address}
+                      <div className="flex items-start gap-2.5">
+                        <div className="mt-0.5 p-1 rounded-md bg-primary-soft text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+                          <MapPin className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-semibold text-ink truncate">
+                            {item.name || item.address.split(',')[0]}
+                          </p>
+                          <p className="text-[11px] text-text-secondary truncate mt-0.5">
+                            {item.address}
+                          </p>
+                        </div>
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -825,15 +853,15 @@ export default function CabRides() {
             {["IN_PROGRESS", "DRIVER_EN_ROUTE", "QUOTE_ACCEPTED"].includes(
               activeRide.status,
             ) && (
-              <Card>
-                <h3 className="text-label-lg text-ink mb-2">
-                  Reached destination?
-                </h3>
-                <Button onClick={() => setEndRideConfirmOpen(true)}>
-                  End Ride
-                </Button>
-              </Card>
-            )}
+                <Card>
+                  <h3 className="text-label-lg text-ink mb-2">
+                    Reached destination?
+                  </h3>
+                  <Button onClick={() => setEndRideConfirmOpen(true)}>
+                    End Ride
+                  </Button>
+                </Card>
+              )}
           </motion.div>
         )}
       </AnimatePresence>

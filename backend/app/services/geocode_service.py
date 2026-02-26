@@ -58,31 +58,36 @@ def _format_photon_feature(feature):
     )
     state = (properties.get("state") or "").strip()
     country = (properties.get("country") or "").strip()
+    osm_key = (properties.get("osm_key") or "").strip()
 
+    # Re-evaluating display logic to favor POI names
     parts = []
-    primary = " ".join(part for part in [housenumber, street] if part).strip()
-    if primary:
-        parts.append(primary)
-    elif name:
+    
+    # Primary label: Name of the place/POI or building number + street
+    street_address = " ".join(part for part in [housenumber, street] if part).strip()
+    
+    if name and name.lower() not in street_address.lower():
         parts.append(name)
+    
+    if street_address:
+        parts.append(street_address)
+    
     if suburb:
         parts.append(suburb)
     if city:
         parts.append(str(city).strip())
-    if state:
-        parts.append(state)
-    if country:
-        parts.append(country)
 
     display = ", ".join([p for p in parts if p]) or name
     if not display:
         return None
 
     return {
+        "name": name or street_address or city,
         "address": display,
         "lat": float(coords[1]),
         "lng": float(coords[0]),
         "city": city,
+        "type": osm_key or properties.get("type", "venue")
     }
 
 
@@ -144,7 +149,7 @@ def reverse_geocode(lat, lng):
         return None
 
 
-def suggest_addresses(query, city_hint=None, limit=5):
+def suggest_addresses(query, city_hint=None, limit=5, lat=None, lng=None):
     """Return a small list of matching address suggestions for typeahead UX."""
     if not query or not str(query).strip():
         return []
@@ -156,11 +161,11 @@ def suggest_addresses(query, city_hint=None, limit=5):
     except (TypeError, ValueError):
         max_limit = 5
 
-    candidate_queries = [q]
-    if hint_text:
-        candidate_queries.append(f"{q}, {hint_text}")
-        candidate_queries.append(f"{q}, {hint_text}, India")
-    candidate_queries.append(f"{q}, India")
+    candidate_queries = [f"{q}, {hint_text}, India" if hint_text else f"{q}, India", q]
+    
+    location_bias = ""
+    if lat is not None and lng is not None:
+        location_bias = f"&lat={lat}&lon={lng}"
 
     seen = set()
     results = []
@@ -168,7 +173,7 @@ def suggest_addresses(query, city_hint=None, limit=5):
         # First pass: Photon autocomplete (better for typed suggestions, free).
         for candidate in candidate_queries:
             query_text = quote_plus(candidate)
-            photon_url = f"{PHOTON_BASE_URL}/?q={query_text}&limit={max_limit}&lang=en"
+            photon_url = f"{PHOTON_BASE_URL}/?q={query_text}&limit={max_limit}&lang=en{location_bias}"
             res = requests.get(photon_url, headers=DEFAULT_HEADERS, timeout=8)
             res.raise_for_status()
             features = (res.json() or {}).get("features", [])
@@ -202,6 +207,7 @@ def suggest_addresses(query, city_hint=None, limit=5):
                 seen.add(display)
                 results.append(
                     {
+                        "name": item.get("name") or display.split(",")[0],
                         "address": display,
                         "lat": float(item["lat"]),
                         "lng": float(item["lon"]),
