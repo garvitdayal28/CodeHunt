@@ -82,12 +82,15 @@ export default function HotelBookingsTable({
     },
   ];
 
-  if (mode === 'business') {
+  if (mode === 'business' || mode === 'admin') {
     columns.unshift({
       key: 'traveler_name',
       header: 'Traveler',
       render: (value) => value || '-',
     });
+  }
+
+  if (mode === 'business') {
     columns.push({
       key: 'actions',
       header: 'Action',

@@ -1,26 +1,33 @@
-import { useEffect, useMemo, useState } from 'react';
-import { BedDouble, Plus } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { BedDouble, Plus } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 
-import api from '../../api/axios';
-import RoomTypeCard from '../../components/hotel/RoomTypeCard';
-import RoomTypeForm, { EMPTY_ROOM_FORM } from '../../components/hotel/RoomTypeForm';
-import Button from '../../components/ui/Button';
-import ConfirmModal from '../../components/ui/ConfirmModal';
-import Modal from '../../components/ui/Modal';
-import { useAuth } from '../../contexts/AuthContext';
+import api from "../../api/axios";
+import RoomTypeCard from "../../components/hotel/RoomTypeCard";
+import RoomTypeForm, {
+  EMPTY_ROOM_FORM,
+} from "../../components/hotel/RoomTypeForm";
+import Button from "../../components/ui/Button";
+import ConfirmModal from "../../components/ui/ConfirmModal";
+import EmptyState from "../../components/ui/EmptyState";
+import Modal from "../../components/ui/Modal";
+import PageHeader from "../../components/ui/PageHeader";
+import { SkeletonCard } from "../../components/ui/Skeleton";
+import { useAuth } from "../../contexts/AuthContext";
+import { useToast } from "../../contexts/ToastContext";
 
 function toForm(room) {
   if (!room) return { ...EMPTY_ROOM_FORM };
   return {
-    name: room.name || '',
-    description: room.description || '',
-    price_per_day: room.price_per_day?.toString() || '',
-    total_rooms: room.total_rooms?.toString() || '',
-    room_count_available: room.room_count_available?.toString() || '',
-    beds: room.beds?.toString() || '',
-    max_guests: room.max_guests?.toString() || '',
-    area_sqft: room.area_sqft?.toString() || '',
-    amenities: (room.amenities || []).join(', '),
+    name: room.name || "",
+    description: room.description || "",
+    price_per_day: room.price_per_day?.toString() || "",
+    total_rooms: room.total_rooms?.toString() || "",
+    room_count_available: room.room_count_available?.toString() || "",
+    beds: room.beds?.toString() || "",
+    max_guests: room.max_guests?.toString() || "",
+    area_sqft: room.area_sqft?.toString() || "",
+    amenities: (room.amenities || []).join(", "),
     images: room.images || [],
   };
 }
@@ -42,60 +49,77 @@ function formToPayload(form) {
 
 export default function RoomManagement() {
   const { currentUser, userRole, businessType } = useAuth();
+  const toast = useToast();
   const [rooms, setRooms] = useState([]);
-  const [propertyId, setPropertyId] = useState('');
+  const [propertyId, setPropertyId] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [editorOpen, setEditorOpen] = useState(false);
-  const [editingRoomId, setEditingRoomId] = useState('');
+  const [editingRoomId, setEditingRoomId] = useState("");
   const [form, setForm] = useState({ ...EMPTY_ROOM_FORM });
-  const [deleteId, setDeleteId] = useState('');
+  const [deleteId, setDeleteId] = useState("");
 
   const isEditing = useMemo(() => Boolean(editingRoomId), [editingRoomId]);
-  const isAdminHotelView = userRole === 'HOTEL_ADMIN' || userRole === 'PLATFORM_ADMIN';
-  const isBusinessHotelView = userRole === 'BUSINESS' && businessType === 'HOTEL';
+  const isAdminHotelView =
+    userRole === "HOTEL_ADMIN" || userRole === "PLATFORM_ADMIN";
+  const isBusinessHotelView =
+    userRole === "BUSINESS" && businessType === "HOTEL";
   const canManageRooms = isAdminHotelView || isBusinessHotelView;
-  const roomsPath = isAdminHotelView ? '/admin/hotel/rooms' : '/business/hotel/rooms';
-  const uploadPath = isAdminHotelView ? '/admin/hotel/upload-image' : '/business/hotel/upload-image';
+  const roomsPath = isAdminHotelView
+    ? "/admin/hotel/rooms"
+    : "/business/hotel/rooms";
+  const uploadPath = isAdminHotelView
+    ? "/admin/hotel/upload-image"
+    : "/business/hotel/upload-image";
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      setError('');
+      setError("");
       if (!canManageRooms) {
         setRooms([]);
-        setPropertyId('');
-        setError('Room management is available only for hotel accounts.');
+        setPropertyId("");
+        setError("Room management is available only for hotel accounts.");
         return;
       }
 
       if (isAdminHotelView) {
         const [profileRes, roomsRes] = await Promise.all([
-          api.get('/admin/hotel/profile'),
-          api.get('/admin/hotel/rooms'),
+          api.get("/admin/hotel/profile"),
+          api.get("/admin/hotel/rooms"),
         ]);
-        setPropertyId(profileRes?.data?.data?.id || '');
+        setPropertyId(profileRes?.data?.data?.id || "");
         setRooms(roomsRes?.data?.data || []);
       } else {
-        const roomsRes = await api.get('/business/hotel/rooms');
-        setPropertyId(currentUser?.uid || '');
+        const roomsRes = await api.get("/business/hotel/rooms");
+        setPropertyId(currentUser?.uid || "");
         setRooms(roomsRes?.data?.data || []);
       }
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to load room inventory.');
+      setError(
+        err?.response?.data?.message || "Failed to load room inventory.",
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, [canManageRooms, currentUser?.uid, isAdminHotelView]);
 
   useEffect(() => {
     loadData();
-  }, [canManageRooms, isAdminHotelView, currentUser?.uid]);
+  }, [loadData]);
+
+  useEffect(() => {
+    if (error) toast.error("Rooms", error);
+  }, [error, toast]);
+
+  useEffect(() => {
+    if (success) toast.success("Rooms", success);
+  }, [success, toast]);
 
   const openCreate = () => {
-    setEditingRoomId('');
+    setEditingRoomId("");
     setForm({ ...EMPTY_ROOM_FORM });
     setEditorOpen(true);
   };
@@ -109,24 +133,26 @@ export default function RoomManagement() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      setError('');
-      setSuccess('');
+      setError("");
+      setSuccess("");
       const payload = formToPayload(form);
       if (isEditing) {
         const res = await api.put(`${roomsPath}/${editingRoomId}`, payload);
         const updated = res?.data?.data;
-        setRooms((prev) => prev.map((room) => (room.id === editingRoomId ? updated : room)));
-        setSuccess('Room type updated successfully.');
+        setRooms((prev) =>
+          prev.map((room) => (room.id === editingRoomId ? updated : room)),
+        );
+        setSuccess("Room type updated successfully.");
       } else {
         const res = await api.post(roomsPath, payload);
         const created = res?.data?.data;
         setRooms((prev) => [created, ...prev]);
-        setSuccess('Room type created successfully.');
+        setSuccess("Room type created successfully.");
       }
       setEditorOpen(false);
-      setEditingRoomId('');
+      setEditingRoomId("");
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to save room type.');
+      setError(err?.response?.data?.message || "Failed to save room type.");
     } finally {
       setSaving(false);
     }
@@ -135,87 +161,136 @@ export default function RoomManagement() {
   const handleDelete = async () => {
     try {
       if (!deleteId) return;
-      setError('');
-      setSuccess('');
+      setError("");
+      setSuccess("");
       await api.delete(`${roomsPath}/${deleteId}`);
       setRooms((prev) => prev.filter((room) => room.id !== deleteId));
-      setDeleteId('');
-      setSuccess('Room type deleted successfully.');
+      setDeleteId("");
+      setSuccess("Room type deleted successfully.");
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to delete room type.');
+      setError(err?.response?.data?.message || "Failed to delete room type.");
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-display-md text-ink">Room Management</h1>
-          <p className="text-body-sm text-text-secondary mt-1">
-            Create room categories with pricing, inventory and photos for booking-ready listings.
-          </p>
-        </div>
-        <Button icon={Plus} onClick={openCreate}>Add Room Type</Button>
-      </div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="space-y-6"
+    >
+      <PageHeader
+        title="Room Management"
+        description="Create room categories with pricing, inventory and photos for booking-ready listings."
+        action={(
+          <Button icon={Plus} onClick={openCreate}>
+            Add Room Type
+          </Button>
+        )}
+      />
 
-      {error && (
-        <div className="bg-danger-soft border border-danger/20 rounded-lg p-3">
-          <p className="text-[13px] text-danger">{error}</p>
-        </div>
-      )}
-      {success && (
-        <div className="bg-success/10 border border-success/20 rounded-lg p-3">
-          <p className="text-[13px] text-success">{success}</p>
-        </div>
-      )}
+      <AnimatePresence mode="popLayout">
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+            animate={{ opacity: 1, height: "auto", marginBottom: 16 }}
+            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+            className="bg-danger-soft border border-danger/20 rounded-lg p-3 overflow-hidden"
+          >
+            <p className="text-[13px] text-danger">{error}</p>
+          </motion.div>
+        )}
+        {success && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+            animate={{ opacity: 1, height: "auto", marginBottom: 16 }}
+            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+            className="bg-success/10 border border-success/20 rounded-lg p-3 overflow-hidden"
+          >
+            <p className="text-[13px] text-success">{success}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {loading ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {[...Array(4)].map((_, idx) => (
-            <div key={idx} className="h-52 bg-surface-sunken rounded-xl animate-pulse" />
+            <SkeletonCard key={idx} className="h-56" bodyLines={2} />
           ))}
         </div>
       ) : rooms.length === 0 ? (
-        <div className="rounded-xl border border-border bg-white p-8 text-center">
-          <BedDouble className="h-8 w-8 text-text-muted mx-auto" />
-          <p className="text-[15px] text-ink font-medium mt-3">No room types created yet</p>
-          <p className="text-[13px] text-text-secondary mt-1">Create your first room category to start selling inventory.</p>
-          <div className="mt-4">
-            <Button icon={Plus} onClick={openCreate}>Add Room Type</Button>
-          </div>
-        </div>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="rounded-xl border border-border bg-white p-4"
+        >
+          <EmptyState
+            icon={BedDouble}
+            title="No room types created yet"
+            description="Create your first room category to start selling inventory."
+            action={(
+              <Button icon={Plus} onClick={openCreate}>
+                Add Room Type
+              </Button>
+            )}
+          />
+        </motion.div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {rooms.map((room) => (
-            <RoomTypeCard
-              key={room.id}
-              room={room}
-              onEdit={openEdit}
-              onDelete={setDeleteId}
-            />
-          ))}
-        </div>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="grid grid-cols-1 lg:grid-cols-2 gap-4"
+        >
+          <AnimatePresence>
+            {rooms.map((room) => (
+              <motion.div
+                key={room.id}
+                layout
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+              >
+                <RoomTypeCard
+                  room={room}
+                  onEdit={openEdit}
+                  onDelete={setDeleteId}
+                />
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
       )}
 
       <Modal
         open={editorOpen}
         onClose={() => setEditorOpen(false)}
-        title={isEditing ? 'Edit Room Type' : 'Create Room Type'}
+        title={isEditing ? "Edit Room Type" : "Create Room Type"}
         maxWidthClass="max-w-3xl"
-        footer={(
+        footer={
           <div className="flex items-center justify-end gap-2">
-            <Button variant="secondary" onClick={() => setEditorOpen(false)}>Cancel</Button>
-            <Button loading={saving} onClick={handleSave}>{isEditing ? 'Save Changes' : 'Create Room Type'}</Button>
+            <Button variant="secondary" onClick={() => setEditorOpen(false)}>
+              Cancel
+            </Button>
+            <Button loading={saving} onClick={handleSave}>
+              {isEditing ? "Save Changes" : "Create Room Type"}
+            </Button>
           </div>
-        )}
+        }
       >
         <div className="max-h-[68vh] overflow-y-auto pr-1">
           <RoomTypeForm
             value={form}
             onChange={setForm}
-            uploadFolder={isAdminHotelView
-              ? (propertyId ? `tripallied/properties/${propertyId}/rooms` : 'tripallied/rooms')
-              : (propertyId ? `tripallied/business/${propertyId}/rooms` : 'tripallied/business/rooms')}
+            uploadFolder={
+              isAdminHotelView
+                ? propertyId
+                  ? `tripallied/properties/${propertyId}/rooms`
+                  : "tripallied/rooms"
+                : propertyId
+                  ? `tripallied/business/${propertyId}/rooms`
+                  : "tripallied/business/rooms"
+            }
             uploadPath={uploadPath}
           />
         </div>
@@ -225,11 +300,12 @@ export default function RoomManagement() {
         open={Boolean(deleteId)}
         title="Delete Room Type"
         message="This will remove the room type and its listing details. Do you want to continue?"
-        onCancel={() => setDeleteId('')}
+        onCancel={() => setDeleteId("")}
         onConfirm={handleDelete}
         confirmLabel="Delete"
         confirmVariant="danger"
+        intent="danger"
       />
-    </div>
+    </motion.div>
   );
 }

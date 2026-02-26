@@ -4,10 +4,10 @@ export default function LiveIndicator({ connected = false, label = 'LIVE' }) {
       <span
         className={`
           h-2 w-2 rounded-full
-          ${connected ? 'bg-success animate-pulse-live' : 'bg-dust'}
+          ${connected ? 'bg-success animate-pulse-live' : 'bg-border'}
         `}
       />
-      <span className={connected ? 'text-success' : 'text-dust'}>
+      <span className={connected ? 'text-success' : 'text-text-secondary'}>
         {connected ? label : 'OFFLINE'}
       </span>
     </span>

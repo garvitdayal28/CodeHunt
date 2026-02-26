@@ -1,4 +1,4 @@
-import Input from '../ui/Input';
+import Input, { Textarea } from '../ui/Input';
 
 export default function HotelProfileForm({ form, onChange }) {
   return (
@@ -54,21 +54,13 @@ export default function HotelProfileForm({ form, onChange }) {
         onChange={(e) => onChange('amenities', e.target.value)}
       />
 
-      <div className="space-y-1.5 md:col-span-2">
-        <label className="block text-[13px] font-medium text-ink">Description</label>
-        <textarea
-          className="
-            block w-full min-h-24 px-3 py-2
-            bg-white border border-border
-            rounded-lg text-[14px] text-ink placeholder-text-placeholder
-            outline-none transition-all duration-150
-            focus:border-accent focus:ring-2 focus:ring-accent/20
-          "
-          value={form.description}
-          onChange={(e) => onChange('description', e.target.value)}
-          placeholder="Describe your property and what makes it special."
-        />
-      </div>
+      <Textarea
+        label="Description"
+        className="md:col-span-2"
+        value={form.description}
+        onChange={(e) => onChange('description', e.target.value)}
+        placeholder="Describe your property and what makes it special."
+      />
     </div>
   );
 }

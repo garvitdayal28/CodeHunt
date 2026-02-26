@@ -58,7 +58,11 @@ def traveler_rides():
     rides = []
     query = db.collection("rides").where("traveler_uid", "==", uid)
     for doc in query.stream():
-        rides.append(serialize_doc(doc))
+        ride_data = serialize_doc(doc)
+        if ride_data.get("status") == "EXPIRED":
+            db.collection("rides").document(doc.id).delete()
+        else:
+            rides.append(ride_data)
 
     rides.sort(key=lambda r: r.get("created_at", ""), reverse=True)
     return success_response(rides)
@@ -76,7 +80,11 @@ def driver_rides():
     rides = []
     query = db.collection("rides").where("driver_uid", "==", uid)
     for doc in query.stream():
-        rides.append(_sanitize_ride_for_driver(serialize_doc(doc)))
+        ride_data = serialize_doc(doc)
+        if ride_data.get("status") == "EXPIRED":
+            db.collection("rides").document(doc.id).delete()
+        else:
+            rides.append(_sanitize_ride_for_driver(ride_data))
 
     rides.sort(key=lambda r: r.get("created_at", ""), reverse=True)
     return success_response(rides)

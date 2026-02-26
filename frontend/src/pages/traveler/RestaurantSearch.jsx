@@ -5,6 +5,9 @@ import { Search } from 'lucide-react';
 import api from '../../api/axios';
 import RestaurantCard from '../../components/restaurant/RestaurantCard';
 import RestaurantFiltersBar from '../../components/restaurant/RestaurantFiltersBar';
+import EmptyState from '../../components/ui/EmptyState';
+import PageHeader from '../../components/ui/PageHeader';
+import { SkeletonCard } from '../../components/ui/Skeleton';
 
 function buildSearchParams(filters) {
     const params = new URLSearchParams();
@@ -65,12 +68,10 @@ export default function RestaurantSearch() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-display-md text-ink">Restaurants</h1>
-                <p className="text-body-sm text-text-secondary mt-1">
-                    Find the best places to eat, browse menus, and discover local cuisines.
-                </p>
-            </div>
+            <PageHeader
+                title="Restaurants"
+                description="Find the best places to eat, browse menus, and discover local cuisines."
+            />
 
             <RestaurantFiltersBar value={filters} onChange={setFilters} onSubmit={handleSubmit} loading={loading} />
 
@@ -83,7 +84,7 @@ export default function RestaurantSearch() {
             {loading ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {[...Array(6)].map((_, idx) => (
-                        <div key={idx} className="h-80 bg-surface-sunken rounded-xl animate-pulse" />
+                        <SkeletonCard key={idx} className="h-[22rem]" bodyLines={2} />
                     ))}
                 </div>
             ) : restaurants.length > 0 ? (
@@ -93,11 +94,11 @@ export default function RestaurantSearch() {
                     ))}
                 </div>
             ) : searched ? (
-                <div className="text-center py-14 border border-border rounded-xl bg-white">
-                    <Search className="h-10 w-10 text-text-placeholder mx-auto mb-2" />
-                    <p className="text-body-lg text-ink font-medium">No restaurants found</p>
-                    <p className="text-body-sm text-text-secondary mt-1">Try adjusting the city or cuisine type.</p>
-                </div>
+                <EmptyState
+                    icon={Search}
+                    title="No restaurants found"
+                    description="Try adjusting the city or cuisine type."
+                />
             ) : null}
         </div>
     );

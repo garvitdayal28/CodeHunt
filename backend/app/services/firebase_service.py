@@ -7,12 +7,23 @@ and local serviceAccountKey.json file (for development).
 import os
 import json
 import base64
+import logging
 import firebase_admin
 from firebase_admin import credentials, auth, firestore
 
 
 _firebase_app = None
 _firestore_client = None
+
+
+def _get_clock_skew_seconds():
+    """Return allowed token clock skew in seconds (bounded for safety)."""
+    raw = os.getenv("FIREBASE_CLOCK_SKEW_SECONDS", "5")
+    try:
+        skew = int(raw)
+    except (TypeError, ValueError):
+        skew = 5
+    return max(0, min(skew, 60))
 
 
 def init_firebase(app):
@@ -68,9 +79,14 @@ def verify_firebase_token(id_token):
     Returns None if the token is invalid.
     """
     try:
-        decoded_token = auth.verify_id_token(id_token)
+        decoded_token = auth.verify_id_token(
+            id_token,
+            check_revoked=False,
+            clock_skew_seconds=_get_clock_skew_seconds(),
+        )
         return decoded_token
-    except Exception:
+    except Exception as e:
+        logging.warning(f"Token verification failed: {e}")
         return None
 
 

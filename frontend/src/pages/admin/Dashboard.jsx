@@ -3,6 +3,8 @@ import { Users, MapPin, Ticket, AlertTriangle, Building2, Compass } from 'lucide
 import api from '../../api/axios';
 import StatCard from '../../components/ui/StatCard';
 import Card from '../../components/ui/Card';
+import PageHeader from '../../components/ui/PageHeader';
+import { PageSectionSkeleton } from '../../components/ui/Skeleton';
 
 export default function PlatformDashboard() {
   const [stats, setStats] = useState(null);
@@ -24,14 +26,7 @@ export default function PlatformDashboard() {
   }, []);
 
   if (loading || !stats) {
-    return (
-      <div className="space-y-6">
-        <div className="h-7 w-48 bg-surface-sunken rounded-lg animate-pulse" />
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => <div key={i} className="h-24 bg-surface-sunken rounded-xl animate-pulse" />)}
-        </div>
-      </div>
-    );
+    return <PageSectionSkeleton blocks={2} blockHeightClass="h-32" />;
   }
 
   const topCards = [
@@ -43,10 +38,7 @@ export default function PlatformDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-display-md text-ink">Overview</h1>
-        <p className="text-body-sm text-text-secondary mt-1">Platform-wide metrics and system health.</p>
-      </div>
+      <PageHeader title="Overview" description="Platform-wide metrics and system health." />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {topCards.map((card, i) => <StatCard key={card.title} {...card} index={i} />)}

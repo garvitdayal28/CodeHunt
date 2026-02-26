@@ -1,61 +1,66 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Compass, Plus } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Compass, Plus } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 
-import api from '../../api/axios';
-import GuideServiceCard from '../../components/guide/GuideServiceCard';
-import GuideServiceForm from '../../components/guide/GuideServiceForm';
-import Button from '../../components/ui/Button';
-import Card from '../../components/ui/Card';
-import ConfirmModal from '../../components/ui/ConfirmModal';
-import Modal from '../../components/ui/Modal';
-import { useAuth } from '../../contexts/AuthContext';
+import api from "../../api/axios";
+import GuideServiceCard from "../../components/guide/GuideServiceCard";
+import GuideServiceForm from "../../components/guide/GuideServiceForm";
+import Button from "../../components/ui/Button";
+import Card from "../../components/ui/Card";
+import ConfirmModal from "../../components/ui/ConfirmModal";
+import EmptyState from "../../components/ui/EmptyState";
+import Modal from "../../components/ui/Modal";
+import PageHeader from "../../components/ui/PageHeader";
+import { SkeletonCard } from "../../components/ui/Skeleton";
+import { useAuth } from "../../contexts/AuthContext";
+import { useToast } from "../../contexts/ToastContext";
 
 const EMPTY_GUIDE_SERVICE_FORM = {
-  service_type: 'ACTIVITY',
-  name: '',
-  description: '',
-  location: '',
-  duration_hours: '',
-  price: '',
-  price_unit: 'PER_PERSON',
-  max_group_size: '',
-  category: '',
-  highlights: '',
-  inclusions: '',
+  service_type: "ACTIVITY",
+  name: "",
+  description: "",
+  location: "",
+  duration_hours: "",
+  price: "",
+  price_unit: "PER_PERSON",
+  max_group_size: "",
+  category: "",
+  highlights: "",
+  inclusions: "",
   images: [],
   is_active: true,
-  difficulty_level: 'EASY',
-  min_age: '',
-  meeting_point: '',
-  languages: '',
+  difficulty_level: "EASY",
+  min_age: "",
+  meeting_point: "",
+  languages: "",
 };
 
 function toForm(service) {
   if (!service) return { ...EMPTY_GUIDE_SERVICE_FORM };
   return {
-    service_type: service.service_type || 'ACTIVITY',
-    name: service.name || '',
-    description: service.description || '',
-    location: service.location || '',
-    duration_hours: service.duration_hours?.toString() || '',
-    price: service.price?.toString() || '',
-    price_unit: service.price_unit || 'PER_PERSON',
-    max_group_size: service.max_group_size?.toString() || '',
-    category: (service.category || []).join(', '),
-    highlights: (service.highlights || []).join(', '),
-    inclusions: (service.inclusions || []).join(', '),
+    service_type: service.service_type || "ACTIVITY",
+    name: service.name || "",
+    description: service.description || "",
+    location: service.location || "",
+    duration_hours: service.duration_hours?.toString() || "",
+    price: service.price?.toString() || "",
+    price_unit: service.price_unit || "PER_PERSON",
+    max_group_size: service.max_group_size?.toString() || "",
+    category: (service.category || []).join(", "),
+    highlights: (service.highlights || []).join(", "),
+    inclusions: (service.inclusions || []).join(", "),
     images: service.images || [],
     is_active: service.is_active !== false,
-    difficulty_level: service.difficulty_level || 'EASY',
-    min_age: service.min_age?.toString() || '',
-    meeting_point: service.meeting_point || '',
-    languages: (service.languages || []).join(', '),
+    difficulty_level: service.difficulty_level || "EASY",
+    min_age: service.min_age?.toString() || "",
+    meeting_point: service.meeting_point || "",
+    languages: (service.languages || []).join(", "),
   };
 }
 
 function toList(value) {
-  return String(value || '')
-    .split(',')
+  return String(value || "")
+    .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
 }
@@ -77,7 +82,7 @@ function formToPayload(form) {
     is_active: form.is_active,
   };
 
-  if (form.service_type === 'ACTIVITY') {
+  if (form.service_type === "ACTIVITY") {
     payload.difficulty_level = form.difficulty_level;
     payload.min_age = form.min_age || undefined;
   } else {
@@ -90,20 +95,21 @@ function formToPayload(form) {
 
 export default function GuideServicesManagement() {
   const { currentUser, businessType } = useAuth();
+  const toast = useToast();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [editorOpen, setEditorOpen] = useState(false);
-  const [editingId, setEditingId] = useState('');
+  const [editingId, setEditingId] = useState("");
   const [form, setForm] = useState({ ...EMPTY_GUIDE_SERVICE_FORM });
-  const [deleteId, setDeleteId] = useState('');
+  const [deleteId, setDeleteId] = useState("");
 
-  const servicesPath = '/business/guide/services';
-  const uploadPath = '/business/guide/upload-image';
+  const servicesPath = "/business/guide/services";
+  const uploadPath = "/business/guide/upload-image";
   const isEditing = useMemo(() => Boolean(editingId), [editingId]);
-  const isGuideBusiness = businessType === 'TOURIST_GUIDE_SERVICE';
+  const isGuideBusiness = businessType === "TOURIST_GUIDE_SERVICE";
 
   const loadData = useCallback(async () => {
     if (!isGuideBusiness) {
@@ -113,11 +119,13 @@ export default function GuideServicesManagement() {
     }
     try {
       setLoading(true);
-      setError('');
+      setError("");
       const res = await api.get(servicesPath);
       setItems(res?.data?.data || []);
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to load service packages.');
+      setError(
+        err?.response?.data?.message || "Failed to load service packages.",
+      );
     } finally {
       setLoading(false);
     }
@@ -127,8 +135,16 @@ export default function GuideServicesManagement() {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    if (error) toast.error("Guide services", error);
+  }, [error, toast]);
+
+  useEffect(() => {
+    if (success) toast.success("Guide services", success);
+  }, [success, toast]);
+
   const openCreate = () => {
-    setEditingId('');
+    setEditingId("");
     setForm({ ...EMPTY_GUIDE_SERVICE_FORM });
     setEditorOpen(true);
   };
@@ -142,24 +158,28 @@ export default function GuideServicesManagement() {
   const handleSave = async () => {
     try {
       setSaving(true);
-      setError('');
-      setSuccess('');
+      setError("");
+      setSuccess("");
       const payload = formToPayload(form);
       if (isEditing) {
         const res = await api.put(`${servicesPath}/${editingId}`, payload);
         const updated = res?.data?.data;
-        setItems((prev) => prev.map((item) => (item.id === editingId ? updated : item)));
-        setSuccess('Service package updated successfully.');
+        setItems((prev) =>
+          prev.map((item) => (item.id === editingId ? updated : item)),
+        );
+        setSuccess("Service package updated successfully.");
       } else {
         const res = await api.post(servicesPath, payload);
         const created = res?.data?.data;
         setItems((prev) => [created, ...prev]);
-        setSuccess('Service package created successfully.');
+        setSuccess("Service package created successfully.");
       }
       setEditorOpen(false);
-      setEditingId('');
+      setEditingId("");
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to save service package.');
+      setError(
+        err?.response?.data?.message || "Failed to save service package.",
+      );
     } finally {
       setSaving(false);
     }
@@ -168,14 +188,16 @@ export default function GuideServicesManagement() {
   const handleDelete = async () => {
     try {
       if (!deleteId) return;
-      setError('');
-      setSuccess('');
+      setError("");
+      setSuccess("");
       await api.delete(`${servicesPath}/${deleteId}`);
       setItems((prev) => prev.filter((item) => item.id !== deleteId));
-      setDeleteId('');
-      setSuccess('Service package deleted successfully.');
+      setDeleteId("");
+      setSuccess("Service package deleted successfully.");
     } catch (err) {
-      setError(err?.response?.data?.message || 'Failed to delete service package.');
+      setError(
+        err?.response?.data?.message || "Failed to delete service package.",
+      );
     }
   };
 
@@ -184,90 +206,128 @@ export default function GuideServicesManagement() {
       <Card>
         <h1 className="text-display-sm text-ink mb-2">Manage Services</h1>
         <p className="text-body-sm text-text-secondary">
-          This tab is available only for business accounts registered as Tourist Guide / Service.
+          This tab is available only for business accounts registered as Tourist
+          Guide / Service.
         </p>
       </Card>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-display-md text-ink">Manage Services</h1>
-          <p className="text-body-sm text-text-secondary mt-1">
-            Create activity and guided-tour packages with images, pricing, and visibility control.
-          </p>
-        </div>
-        <Button icon={Plus} onClick={openCreate}>
-          Add Package
-        </Button>
-      </div>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="space-y-6"
+    >
+      <PageHeader
+        title="Manage Services"
+        description="Create activity and guided-tour packages with images, pricing, and visibility control."
+        action={(
+          <Button icon={Plus} onClick={openCreate}>
+            Add Package
+          </Button>
+        )}
+      />
 
-      {error && (
-        <div className="bg-danger-soft border border-danger/20 rounded-lg p-3">
-          <p className="text-[13px] text-danger">{error}</p>
-        </div>
-      )}
-      {success && (
-        <div className="bg-success/10 border border-success/20 rounded-lg p-3">
-          <p className="text-[13px] text-success">{success}</p>
-        </div>
-      )}
+      <AnimatePresence mode="popLayout">
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+            animate={{ opacity: 1, height: "auto", marginBottom: 16 }}
+            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+            className="bg-danger-soft border border-danger/20 rounded-lg p-3 overflow-hidden"
+          >
+            <p className="text-[13px] text-danger">{error}</p>
+          </motion.div>
+        )}
+        {success && (
+          <motion.div
+            initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+            animate={{ opacity: 1, height: "auto", marginBottom: 16 }}
+            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+            className="bg-success/10 border border-success/20 rounded-lg p-3 overflow-hidden"
+          >
+            <p className="text-[13px] text-success">{success}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {loading ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {[...Array(4)].map((_, idx) => (
-            <div key={idx} className="h-52 bg-surface-sunken rounded-xl animate-pulse" />
+            <SkeletonCard key={idx} className="h-56" bodyLines={2} />
           ))}
         </div>
       ) : items.length === 0 ? (
-        <div className="rounded-xl border border-border bg-white p-8 text-center">
-          <Compass className="h-8 w-8 text-text-muted mx-auto" />
-          <p className="text-[15px] text-ink font-medium mt-3">No service packages yet</p>
-          <p className="text-[13px] text-text-secondary mt-1">
-            Add your first activity or guided-tour package to start getting discovered.
-          </p>
-          <div className="mt-4">
-            <Button icon={Plus} onClick={openCreate}>
-              Add Package
-            </Button>
-          </div>
-        </div>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="rounded-xl border border-border bg-white p-4"
+        >
+          <EmptyState
+            icon={Compass}
+            title="No service packages yet"
+            description="Add your first activity or guided-tour package to start getting discovered."
+            action={(
+              <Button icon={Plus} onClick={openCreate}>
+                Add Package
+              </Button>
+            )}
+          />
+        </motion.div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {items.map((item) => (
-            <GuideServiceCard
-              key={item.id}
-              service={item}
-              onEdit={openEdit}
-              onDelete={setDeleteId}
-            />
-          ))}
-        </div>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="grid grid-cols-1 lg:grid-cols-2 gap-4"
+        >
+          <AnimatePresence>
+            {items.map((item) => (
+              <motion.div
+                key={item.id}
+                layout
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+              >
+                <GuideServiceCard
+                  service={item}
+                  onEdit={openEdit}
+                  onDelete={setDeleteId}
+                />
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
       )}
 
       <Modal
         open={editorOpen}
         onClose={() => setEditorOpen(false)}
-        title={isEditing ? 'Edit Service Package' : 'Create Service Package'}
+        title={isEditing ? "Edit Service Package" : "Create Service Package"}
         maxWidthClass="max-w-4xl"
-        footer={(
+        footer={
           <div className="flex items-center justify-end gap-2">
             <Button variant="secondary" onClick={() => setEditorOpen(false)}>
               Cancel
             </Button>
             <Button loading={saving} onClick={handleSave}>
-              {isEditing ? 'Save Changes' : 'Create Package'}
+              {isEditing ? "Save Changes" : "Create Package"}
             </Button>
           </div>
-        )}
+        }
       >
         <div className="max-h-[70vh] overflow-y-auto pr-1">
           <GuideServiceForm
             value={form}
             onChange={setForm}
-            uploadFolder={currentUser?.uid ? `tripallied/business/${currentUser.uid}/guide-services` : 'tripallied/business/guide-services'}
+            uploadFolder={
+              currentUser?.uid
+                ? `tripallied/business/${currentUser.uid}/guide-services`
+                : "tripallied/business/guide-services"
+            }
             uploadPath={uploadPath}
           />
         </div>
@@ -277,11 +337,12 @@ export default function GuideServicesManagement() {
         open={Boolean(deleteId)}
         title="Delete Service Package"
         message="This will permanently remove this package. Do you want to continue?"
-        onCancel={() => setDeleteId('')}
+        onCancel={() => setDeleteId("")}
         onConfirm={handleDelete}
         confirmLabel="Delete"
         confirmVariant="danger"
+        intent="danger"
       />
-    </div>
+    </motion.div>
   );
 }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 
-import Input, { Select } from '../ui/Input';
+import Input, { Select, Textarea } from '../ui/Input';
 import { BUSINESS_TYPES, GUIDE_SERVICE_OPTIONS } from '../../constants/business';
 
 export default function BusinessProfileFormFields({ form, onChange, disabled = false }) {
@@ -100,22 +100,13 @@ export default function BusinessProfileFormFields({ form, onChange, disabled = f
         disabled={disabled}
       />
 
-      <div className="space-y-1.5">
-        <label className="block text-[13px] font-medium text-ink">Description</label>
-        <textarea
-          className="
-            block w-full min-h-24 px-3 py-2
-            bg-white border border-border
-            rounded-lg text-[14px] text-ink placeholder-text-placeholder
-            outline-none transition-all duration-150
-            focus:border-accent focus:ring-2 focus:ring-accent/20
-          "
-          value={form.description}
-          onChange={(e) => onChange('description', e.target.value)}
-          placeholder="Tell travelers about your business."
-          disabled={disabled}
-        />
-      </div>
+      <Textarea
+        label="Description"
+        value={form.description}
+        onChange={(e) => onChange('description', e.target.value)}
+        placeholder="Tell travelers about your business."
+        disabled={disabled}
+      />
 
       {form.businessType === 'HOTEL' && (
         <>
@@ -218,22 +209,13 @@ export default function BusinessProfileFormFields({ form, onChange, disabled = f
             onChange={(e) => onChange('guideName', e.target.value)}
             disabled={disabled}
           />
-          <div className="space-y-1.5">
-            <label className="block text-[13px] font-medium text-ink">Personal info / bio</label>
-            <textarea
-              className="
-                block w-full min-h-24 px-3 py-2
-                bg-white border border-border
-                rounded-lg text-[14px] text-ink placeholder-text-placeholder
-                outline-none transition-all duration-150
-                focus:border-accent focus:ring-2 focus:ring-accent/20
-              "
-              value={form.personalBio}
-              onChange={(e) => onChange('personalBio', e.target.value)}
-              placeholder="Experience, specialties, background."
-              disabled={disabled}
-            />
-          </div>
+          <Textarea
+            label="Personal info / bio"
+            value={form.personalBio}
+            onChange={(e) => onChange('personalBio', e.target.value)}
+            placeholder="Experience, specialties, background."
+            disabled={disabled}
+          />
           <Input
             label="Years of experience"
             type="number"

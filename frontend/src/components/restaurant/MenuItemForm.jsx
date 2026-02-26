@@ -1,4 +1,4 @@
-import Input, { Select } from '../ui/Input';
+import Input, { Select, Textarea } from '../ui/Input';
 import ImageUploadInput from '../hotel/ImageUploadInput';
 
 export const EMPTY_MENU_FORM = {
@@ -61,21 +61,12 @@ export default function MenuItemForm({ value, onChange, uploadFolder, uploadPath
                 />
             </div>
 
-            <div className="space-y-1.5">
-                <label className="block text-[13px] font-medium text-ink">Description</label>
-                <textarea
-                    className="
-            block w-full min-h-24 px-3 py-2
-            bg-white border border-border rounded-lg
-            text-[14px] text-ink placeholder-text-placeholder
-            outline-none transition-all duration-150
-            focus:border-accent focus:ring-2 focus:ring-accent/20
-          "
-                    value={value.description}
-                    onChange={(e) => update('description', e.target.value)}
-                    placeholder="Rich and creamy paneer marinated in spices, grilled to perfection."
-                />
-            </div>
+            <Textarea
+                label="Description"
+                value={value.description}
+                onChange={(e) => update('description', e.target.value)}
+                placeholder="Rich and creamy paneer marinated in spices, grilled to perfection."
+            />
 
             <div className="flex items-center gap-3">
                 <label className="flex items-center gap-2 text-[13px] text-text-secondary cursor-pointer">

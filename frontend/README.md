@@ -14,3 +14,33 @@ The React Compiler is not enabled on this template because of its impact on dev 
 ## Expanding the ESLint configuration
 
 If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+
+## HTTPS Dev Server
+
+Vite is configured to run with HTTPS by default.
+
+Run:
+
+```bash
+npm run dev
+```
+
+Open:
+
+```text
+https://localhost:5173
+```
+
+### Optional: trusted certificate for LAN IP
+
+If you access from another device using an IP (for example `https://192.168.29.7:5173`), use a trusted cert:
+
+1. Generate cert files with `mkcert` for your host/IP.
+2. Set these in `frontend/.env`:
+
+```bash
+VITE_SSL_KEY_FILE=certs/dev-key.pem
+VITE_SSL_CERT_FILE=certs/dev-cert.pem
+```
+
+Paths are relative to `frontend/`.

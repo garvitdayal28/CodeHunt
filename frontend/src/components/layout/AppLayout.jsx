@@ -26,7 +26,8 @@ const roleNavigation = {
   TRAVELER: [
     { name: 'Dashboard', href: '/traveler/dashboard', icon: LayoutDashboard },
     { name: 'My Trips', href: '/traveler/itineraries', icon: MapPin },
-    { name: 'Hotels', href: '/traveler/hotels', icon: Search, aliases: ['/traveler/search', '/traveler/search/hotels', '/traveler/hotel/'] },
+    { name: 'Hotels', href: '/traveler/hotels', icon: Search, aliases: ['/traveler/search/hotels', '/traveler/hotel/'] },
+    { name: 'Tours & Activities', href: '/traveler/search/tours', icon: Ticket, aliases: ['/traveler/tours/'] },
     { name: 'Restaurants', href: '/traveler/restaurants', icon: UtensilsCrossed },
     { name: 'My Bookings', href: '/traveler/bookings', icon: Calendar },
     { name: 'Cab', href: '/traveler/cabs', icon: Car },
@@ -38,11 +39,13 @@ const roleNavigation = {
     { name: 'Room Management', href: '/business/rooms', icon: Building2, hotelOnly: true },
     { name: 'Menu', href: '/business/menu', icon: UtensilsCrossed, restaurantOnly: true },
     { name: 'Manage Services', href: '/business/services', icon: MapPin, guideOnly: true },
+    { name: 'Bookings', href: '/business/bookings', icon: Calendar, guideOnly: true },
     { name: 'Rides', href: '/business/rides', icon: Car, cabOnly: true },
     { name: 'Ratings', href: '/business/ratings', icon: Star, cabOnly: true },
   ],
   HOTEL_ADMIN: [
     { name: 'Dashboard', href: '/hotel/dashboard', icon: LayoutDashboard },
+    { name: 'Bookings', href: '/hotel/bookings', icon: Calendar },
     { name: 'Room Management', href: '/hotel/rooms', icon: Building2 },
   ],
   TOUR_OPERATOR: [

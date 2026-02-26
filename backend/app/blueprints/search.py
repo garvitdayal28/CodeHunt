@@ -238,6 +238,8 @@ def _map_guide_service_to_tour(service):
 
     return {
         "id": composite_id or service_id or owner_uid or "guide_service",
+        "guide_service_id": service_id or None,
+        "guide_owner_uid": owner_uid or None,
         "name": service.get("name") or "Guide Service",
         "description": service.get("description") or "",
         "location": service.get("location") or service.get("business_city") or "",
@@ -251,6 +253,28 @@ def _map_guide_service_to_tour(service):
         "owner_name": service.get("owner_display_name") or service.get("business_name") or "",
         "created_at": service.get("created_at"),
     }
+
+
+def _tour_matches_destination(tour, destination):
+    if not destination:
+        return True
+    normalized = _normalize_text(destination)
+    haystack = " ".join(
+        [
+            _normalize_text(tour.get("location")),
+            _normalize_text(tour.get("destination")),
+            _normalize_text(tour.get("name")),
+        ]
+    )
+    return normalized in haystack
+
+
+def _tour_matches_category(tour, category):
+    if not category:
+        return True
+    normalized = _normalize_text(category)
+    values = _to_string_list(tour.get("category")) + _to_string_list(tour.get("category_tags"))
+    return any(_normalize_text(item) == normalized for item in values)
 
 
 @search_bp.route("/hotels", methods=["GET"])
@@ -491,27 +515,35 @@ def search_tours():
     try:
         db = get_firestore_client()
         tours_query = db.collection("tours")
-        if destination:
-            tours_query = tours_query.where("location", "==", destination)
-        if category:
-            tours_query = tours_query.where("category", "array_contains", category)
 
         tours = []
         for doc in tours_query.stream():
             tour = doc.to_dict() or {}
+            if not _tour_matches_destination(tour, destination):
+                continue
+            if not _tour_matches_category(tour, category):
+                continue
             tour["id"] = doc.id
             if "source" not in tour:
                 tour["source"] = "TOUR"
+            if "location" not in tour:
+                tour["location"] = tour.get("destination") or ""
             if "service_type" not in tour:
                 tour["service_type"] = None
             if "owner_name" not in tour:
                 tour["owner_name"] = ""
+            if "guide_service_id" not in tour:
+                tour["guide_service_id"] = None
+            if "guide_owner_uid" not in tour:
+                tour["guide_owner_uid"] = None
             tours.append(tour)
 
         guide_services = []
-        guide_query = db.collection_group("guide_services").where("is_active", "==", True)
+        guide_query = db.collection_group("guide_services")
         for doc in guide_query.stream():
             service = doc.to_dict() or {}
+            if service.get("is_active") is not True:
+                continue
             if not _guide_service_matches_destination(service, destination):
                 continue
             if not _guide_service_matches_category(service, category):
@@ -524,6 +556,35 @@ def search_tours():
     except Exception as e:
         logger.warning(f"Tour search failed: {e}")
         return success_response([])
+
+
+@search_bp.route("/tours/<tour_id>/time-slots", methods=["GET"])
+def get_tour_time_slots(tour_id):
+    """List time slots for a tour."""
+    db = get_firestore_client()
+    tour_doc = db.collection("tours").document(tour_id).get()
+    if not tour_doc.exists:
+        return error_response("NOT_FOUND", "Tour not found.", 404)
+
+    slots = []
+    for slot_doc in db.collection("tours").document(tour_id).collection("time_slots").stream():
+        slot = slot_doc.to_dict() or {}
+        capacity = _to_int(slot.get("capacity"), 0)
+        booked_count = _to_int(slot.get("booked_count"), 0)
+        remaining_capacity = max(0, capacity - booked_count) if capacity > 0 else 0
+        slots.append(
+            {
+                "id": slot_doc.id,
+                "scheduled_time": slot.get("scheduled_time"),
+                "capacity": capacity,
+                "booked_count": booked_count,
+                "remaining_capacity": remaining_capacity,
+                "is_available": remaining_capacity > 0 if capacity > 0 else True,
+            }
+        )
+
+    slots.sort(key=lambda item: item.get("scheduled_time") or "")
+    return success_response(slots)
 
 
 # ─── Restaurant Search ────────────────────────────────────────────────────────

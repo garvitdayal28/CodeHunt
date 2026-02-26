@@ -94,7 +94,7 @@ export default function RestaurantDetail() {
                     className="w-full h-64 md:h-80 object-cover"
                     onError={(e) => { e.target.style.display = 'none'; }}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-transparent" />
 
                 <div className="absolute bottom-6 left-6 right-6">
                     <div className="flex flex-wrap items-center gap-2 mb-3">
@@ -196,6 +196,8 @@ export default function RestaurantDetail() {
                             <MenuItemCard
                                 key={item.id}
                                 item={item}
+                                variant="traveler"
+                                showActions={false}
                             />
                         ))}
                     </div>

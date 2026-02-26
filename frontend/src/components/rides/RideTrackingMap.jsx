@@ -1,12 +1,23 @@
-import { useEffect, useMemo } from 'react';
-import { MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
-import markerIcon from 'leaflet/dist/images/marker-icon.png';
-import markerShadow from 'leaflet/dist/images/marker-shadow.png';
+import { useEffect } from "react";
+import {
+  MapContainer,
+  Marker,
+  Polyline,
+  TileLayer,
+  Tooltip,
+  useMap,
+} from "react-leaflet";
+import { motion } from "motion/react";
+import "leaflet/dist/leaflet.css";
+import L from "leaflet";
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
-import Card from '../ui/Card';
+import Card from "../ui/Card";
+import Skeleton from "../ui/Skeleton";
+import EmptyState from "../ui/EmptyState";
+import { MapPin } from "lucide-react";
 
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
@@ -24,7 +35,7 @@ function toLatLng(point) {
 
 function makePinIcon(color) {
   return L.divIcon({
-    className: 'custom-pin-icon',
+    className: "custom-pin-icon",
     html: `
       <span style="
         display:inline-block;
@@ -39,6 +50,10 @@ function makePinIcon(color) {
     iconAnchor: [7, 7],
   });
 }
+
+const SOURCE_ICON = makePinIcon("#0284c7");
+const DESTINATION_ICON = makePinIcon("#dc2626");
+const DRIVER_ICON = makePinIcon("#16a34a");
 
 function FitBounds({ points }) {
   const map = useMap();
@@ -55,56 +70,110 @@ function FitBounds({ points }) {
   return null;
 }
 
-export default function RideTrackingMap({ ride }) {
+function MapResizer() {
+  const map = useMap();
+  useEffect(() => {
+    const observer = new ResizeObserver(() => {
+      map.invalidateSize();
+    });
+    observer.observe(map.getContainer());
+    return () => observer.disconnect();
+  }, [map]);
+  return null;
+}
+
+export default function RideTrackingMap({ ride, loading = false }) {
+  if (loading) {
+    return (
+      <Card className="overflow-hidden !p-0">
+        <div className="p-4 border-b border-border bg-surface">
+          <Skeleton className="h-4 w-32" rounded="md" />
+        </div>
+        <Skeleton className="h-72 w-full" rounded="lg" />
+      </Card>
+    );
+  }
+
+  const source = toLatLng(ride?.source);
+  const destination = toLatLng(ride?.destination);
+  const driver = toLatLng(ride?.driver_location);
+  const center = driver || source || destination || [20.5937, 78.9629];
+  const linePoints = driver && destination
+    ? [driver, destination]
+    : source && destination
+      ? [source, destination]
+      : [];
+  const allPoints = [source, destination, driver].filter(Boolean);
+
   if (!ride) return null;
 
-  const source = toLatLng(ride.source);
-  const destination = toLatLng(ride.destination);
-  const driver = toLatLng(ride.driver_location);
-  const center = driver || source || destination || [20.5937, 78.9629];
-  const linePoints = useMemo(() => {
-    if (driver && destination) return [driver, destination];
-    if (source && destination) return [source, destination];
-    return [];
-  }, [driver, source, destination]);
-  const allPoints = [source, destination, driver].filter(Boolean);
-  const sourceIcon = useMemo(() => makePinIcon('#0284c7'), []);
-  const destinationIcon = useMemo(() => makePinIcon('#dc2626'), []);
-  const driverIcon = useMemo(() => makePinIcon('#16a34a'), []);
+  if (!source && !destination && !driver) {
+    return (
+      <Card>
+        <h3 className="text-label-lg text-ink font-semibold">Live Tracking</h3>
+        <EmptyState
+          icon={MapPin}
+          title="Tracking data unavailable"
+          description="Live location points will appear once the ride starts sharing coordinates."
+          className="mt-4"
+        />
+      </Card>
+    );
+  }
 
   return (
-    <Card>
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-label-lg text-ink">Live Tracking</h3>
-        <span className="text-[12px] text-text-secondary">
-          {ride.eta_minutes ? `ETA ${ride.eta_minutes} min` : 'ETA calculating...'}
-        </span>
-      </div>
-      <div className="h-72 rounded-xl overflow-hidden border border-border">
-        <MapContainer center={center} zoom={13} style={{ height: '100%', width: '100%' }}>
-          <TileLayer
-            attribution='&copy; OpenStreetMap contributors &copy; CARTO'
-            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-          />
-          <FitBounds points={allPoints} />
-          {source && (
-            <Marker position={source} icon={sourceIcon}>
-              <Tooltip>Pickup</Tooltip>
-            </Marker>
-          )}
-          {destination && (
-            <Marker position={destination} icon={destinationIcon}>
-              <Tooltip>Destination</Tooltip>
-            </Marker>
-          )}
-          {driver && (
-            <Marker position={driver} icon={driverIcon}>
-              <Tooltip>Driver</Tooltip>
-            </Marker>
-          )}
-          {linePoints.length > 1 && <Polyline positions={linePoints} pathOptions={{ color: '#0f766e', weight: 4 }} />}
-        </MapContainer>
-      </div>
-    </Card>
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: 0.1 }}
+    >
+      <Card className="overflow-hidden !p-0">
+        <div className="p-4 border-b border-border bg-surface flex items-center justify-between">
+          <h3 className="text-label-lg text-ink font-semibold">
+            Live Tracking
+          </h3>
+          <span className="text-[12px] font-medium px-2.5 py-1 rounded-full bg-surface-sunken border border-border text-text-secondary">
+            {ride.eta_minutes
+              ? `ETA ${ride.eta_minutes} min`
+              : "ETA calculating..."}
+          </span>
+        </div>
+        <div className="h-72 w-full relative">
+          <MapContainer
+            center={center}
+            zoom={13}
+            style={{ height: "100%", width: "100%" }}
+          >
+            <MapResizer />
+            <TileLayer
+              attribution="&copy; OpenStreetMap contributors &copy; CARTO"
+              url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+            />
+            <FitBounds points={allPoints} />
+            {source && (
+              <Marker position={source} icon={SOURCE_ICON}>
+                <Tooltip>Pickup</Tooltip>
+              </Marker>
+            )}
+            {destination && (
+              <Marker position={destination} icon={DESTINATION_ICON}>
+                <Tooltip>Destination</Tooltip>
+              </Marker>
+            )}
+            {driver && (
+              <Marker position={driver} icon={DRIVER_ICON}>
+                <Tooltip>Driver</Tooltip>
+              </Marker>
+            )}
+            {linePoints.length > 1 && (
+              <Polyline
+                positions={linePoints}
+                pathOptions={{ color: "#0f766e", weight: 4 }}
+              />
+            )}
+          </MapContainer>
+        </div>
+      </Card>
+    </motion.div>
   );
 }
