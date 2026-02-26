@@ -1,6 +1,13 @@
 import { motion } from "motion/react";
+import Skeleton from "./Skeleton";
 
-export default function Card({ children, className = "", ...props }) {
+export default function Card({
+  children,
+  className = "",
+  loading = false,
+  skeletonClassName = "h-40",
+  ...props
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -13,7 +20,7 @@ export default function Card({ children, className = "", ...props }) {
       `}
       {...props}
     >
-      {children}
+      {loading ? <Skeleton className={skeletonClassName} rounded="lg" /> : children}
     </motion.div>
   );
 }

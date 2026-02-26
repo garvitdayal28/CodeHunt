@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Activity, CarTaxiFront, Navigation, Send } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -12,9 +12,13 @@ import RideTrackingMap from "../../components/rides/RideTrackingMap";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import ConfirmModal from "../../components/ui/ConfirmModal";
+import EmptyState from "../../components/ui/EmptyState";
 import Input from "../../components/ui/Input";
 import Modal from "../../components/ui/Modal";
+import PageHeader from "../../components/ui/PageHeader";
+import { PageSectionSkeleton } from "../../components/ui/Skeleton";
 import { useAuth } from "../../contexts/AuthContext";
+import { useToast } from "../../contexts/ToastContext";
 import { useNotificationSound } from "../../hooks/useNotificationSound";
 import { useRidesSocket } from "../../hooks/useRidesSocket";
 
@@ -37,7 +41,6 @@ export default function BusinessRides() {
   const [quoteNote, setQuoteNote] = useState("");
   const [error, setError] = useState("");
   const [warning, setWarning] = useState("");
-  const [success, setSuccess] = useState("");
   const [latestLocation, setLatestLocation] = useState(null);
   const [acceptConfirmOpen, setAcceptConfirmOpen] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -48,16 +51,18 @@ export default function BusinessRides() {
   const [ratingModalOpen, setRatingModalOpen] = useState(false);
   const [latestRating, setLatestRating] = useState(null);
   const [startRideModalOpen, setStartRideModalOpen] = useState(false);
+  const [startRideConfirmOpen, setStartRideConfirmOpen] = useState(false);
   const [startRideOtp, setStartRideOtp] = useState("");
   const [isAcceptingRide, setIsAcceptingRide] = useState(false);
   const watchIdRef = useRef(null);
   const { play } = useNotificationSound();
+  const toast = useToast();
 
   const { socket, connected, emitEvent } = useRidesSocket(true);
 
   const city = userProfile?.business_profile?.city || "";
 
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     try {
       setLoadingHistory(true);
       const res = await api.get("/rides/driver");
@@ -67,17 +72,19 @@ export default function BusinessRides() {
         rides.find((ride) => ACTIVE_STATUSES.includes(ride.status)) || null;
       setCurrentRide(active);
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to load rides.");
+      const message = err?.response?.data?.message || "Failed to load rides.";
+      setError(message);
+      toast.error("Rides", message);
     } finally {
       setLoadingHistory(false);
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     if (businessType === "CAB_DRIVER") {
       fetchHistory();
     }
-  }, [businessType]);
+  }, [businessType, fetchHistory]);
 
   useEffect(() => {
     if (
@@ -134,7 +141,7 @@ export default function BusinessRides() {
       if (!ride) return;
       setCurrentRide(ride);
       setQuoteAcceptedModalOpen(true);
-      setSuccess("Traveler accepted your quote. Start the ride now.");
+      toast.success("Quote accepted", "Traveler accepted your quote. Start the ride now.");
       play("success");
     };
     const onCompleted = (payload) => {
@@ -172,7 +179,9 @@ export default function BusinessRides() {
       );
     };
     const onError = (payload) => {
-      setError(payload?.message || "Ride operation failed.");
+      const message = payload?.message || "Ride operation failed.";
+      setError(message);
+      toast.error("Ride error", message);
       setIsAcceptingRide((prev) => {
         if (prev) {
           setQuoteModalOpen(false);
@@ -200,7 +209,7 @@ export default function BusinessRides() {
       socket.off("ride:completed", onCompleted);
       socket.off("ride:rated", onRated);
     };
-  }, [socket, currentRide, play, quotePromptedRideId]);
+  }, [socket, currentRide, fetchHistory, play, quotePromptedRideId, toast]);
 
   useEffect(() => {
     if (!online) {
@@ -259,7 +268,8 @@ export default function BusinessRides() {
       city,
       location: latestLocation || undefined,
     });
-    setSuccess(
+    toast.info(
+      "Driver availability",
       nextOnline
         ? "You are now online for ride requests."
         : "You are now offline.",
@@ -274,12 +284,12 @@ export default function BusinessRides() {
   const handleConfirmAcceptRequest = () => {
     if (!selectedRequest) return;
     setError("");
-    setSuccess("");
     emitEvent("driver:accept_request", { ride_id: selectedRequest.id });
     setAcceptConfirmOpen(false);
     setIsAcceptingRide(true);
     setQuotePromptedRideId(selectedRequest.id);
     setQuoteModalOpen(true);
+    toast.info("Ride accepted", "Prepare and submit a fare quote.");
   };
 
   const handleSubmitQuote = () => {
@@ -289,7 +299,6 @@ export default function BusinessRides() {
       return;
     }
     setError("");
-    setSuccess("");
     emitEvent("driver:submit_quote", {
       ride_id: currentRide.id,
       price: quotePrice,
@@ -299,7 +308,7 @@ export default function BusinessRides() {
     setQuotePrice("");
     setQuoteNote("");
     setQuoteModalOpen(false);
-    setSuccess("Quote submitted.");
+    toast.success("Quote submitted", "Traveler has been notified.");
     play("success");
   };
 
@@ -310,7 +319,6 @@ export default function BusinessRides() {
       return;
     }
     setError("");
-    setSuccess("");
     emitEvent("driver:start_ride", {
       ride_id: currentRide.id,
       otp: startRideOtp.trim(),
@@ -318,6 +326,7 @@ export default function BusinessRides() {
     setQuoteAcceptedModalOpen(false);
     setStartRideModalOpen(false);
     setStartRideOtp("");
+    toast.success("Ride started", "Trip is now in progress.");
   };
 
   const incomingRequests = useMemo(
@@ -344,13 +353,10 @@ export default function BusinessRides() {
       transition={{ duration: 0.4 }}
       className="space-y-6"
     >
-      <div>
-        <h1 className="text-display-md text-ink">Cab Operations</h1>
-        <p className="text-body-sm text-text-secondary mt-1">
-          Review incoming requests, share fare quotes, verify OTP at pickup, and
-          run live trips.
-        </p>
-      </div>
+      <PageHeader
+        title="Cab Operations"
+        description="Review incoming requests, share fare quotes, verify OTP at pickup, and run live trips."
+      />
 
       <AnimatePresence mode="popLayout">
         {error && (
@@ -371,16 +377,6 @@ export default function BusinessRides() {
             className="bg-warning/10 border border-warning/25 rounded-lg p-3 overflow-hidden"
           >
             <p className="text-[13px] text-warning">{warning}</p>
-          </motion.div>
-        )}
-        {success && (
-          <motion.div
-            initial={{ opacity: 0, height: 0, marginBottom: 0 }}
-            animate={{ opacity: 1, height: "auto", marginBottom: 16 }}
-            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-            className="bg-success/10 border border-success/20 rounded-lg p-3 overflow-hidden"
-          >
-            <p className="text-[13px] text-success">{success}</p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -440,9 +436,12 @@ export default function BusinessRides() {
       <Card>
         <h3 className="text-label-lg text-ink mb-3">Incoming Ride Requests</h3>
         {incomingRequests.length === 0 ? (
-          <p className="text-[13px] text-text-secondary">
-            No incoming requests right now.
-          </p>
+          <EmptyState
+            icon={CarTaxiFront}
+            title="No incoming requests right now."
+            description="Go online to receive nearby ride requests in your service city."
+            className="border-0 bg-transparent px-0 py-3"
+          />
         ) : (
           <div className="space-y-3">
             <AnimatePresence>
@@ -526,21 +525,10 @@ export default function BusinessRides() {
       </AnimatePresence>
 
       {loadingHistory ? (
-        <div className="space-y-4">
-          <div className="h-8 w-48 bg-surface-sunken rounded-lg animate-pulse" />
-          <div className="h-64 bg-surface-sunken rounded-xl animate-pulse" />
-        </div>
+        <PageSectionSkeleton titleWidthClass="w-40" blocks={1} blockHeightClass="h-72" />
       ) : (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-        >
-          <RideHistoryTable
-            title="Ride History"
-            rides={history}
-            travelerView={false}
-          />
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
+          <RideHistoryTable title="Ride History" rides={history} travelerView={false} />
         </motion.div>
       )}
 
@@ -555,6 +543,7 @@ export default function BusinessRides() {
         onCancel={() => setAcceptConfirmOpen(false)}
         onConfirm={handleConfirmAcceptRequest}
         confirmLabel="Accept Ride"
+        intent="warning"
       />
 
       <Modal
@@ -690,11 +679,14 @@ export default function BusinessRides() {
           <div className="flex items-center justify-end gap-2">
             <Button
               variant="secondary"
-              onClick={() => setStartRideModalOpen(false)}
+              onClick={() => {
+                setStartRideModalOpen(false);
+                setStartRideConfirmOpen(false);
+              }}
             >
               Cancel
             </Button>
-            <Button icon={Navigation} onClick={handleStartRide}>
+            <Button icon={Navigation} onClick={() => setStartRideConfirmOpen(true)}>
               Start Ride
             </Button>
           </div>
@@ -717,6 +709,19 @@ export default function BusinessRides() {
           </div>
         </div>
       </Modal>
+
+      <ConfirmModal
+        open={startRideConfirmOpen}
+        title="Start Ride Now?"
+        message="This will mark the trip as in progress for both driver and traveler."
+        onCancel={() => setStartRideConfirmOpen(false)}
+        onConfirm={() => {
+          setStartRideConfirmOpen(false);
+          handleStartRide();
+        }}
+        confirmLabel="Start Ride"
+        intent="warning"
+      />
     </motion.div>
   );
 }

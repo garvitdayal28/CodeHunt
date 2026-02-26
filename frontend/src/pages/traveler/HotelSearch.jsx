@@ -4,7 +4,10 @@ import { Search } from 'lucide-react';
 
 import api from '../../api/axios';
 import HotelCard from '../../components/hotel/HotelCard';
+import EmptyState from '../../components/ui/EmptyState';
 import HotelFiltersBar from '../../components/hotel/HotelFiltersBar';
+import PageHeader from '../../components/ui/PageHeader';
+import { SkeletonCard } from '../../components/ui/Skeleton';
 
 function buildSearchParams(filters) {
   const params = new URLSearchParams();
@@ -77,12 +80,10 @@ export default function HotelSearch() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-display-md text-ink">Hotels</h1>
-        <p className="text-body-sm text-text-secondary mt-1">
-          Search city hotels, compare room inventory, and book with your trip itinerary.
-        </p>
-      </div>
+      <PageHeader
+        title="Hotels"
+        description="Search city hotels, compare room inventory, and book with your trip itinerary."
+      />
 
       <HotelFiltersBar value={filters} onChange={setFilters} onSubmit={handleSubmit} loading={loading} />
 
@@ -95,7 +96,7 @@ export default function HotelSearch() {
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[...Array(6)].map((_, idx) => (
-            <div key={idx} className="h-80 bg-surface-sunken rounded-xl animate-pulse" />
+            <SkeletonCard key={idx} className="h-[22rem]" bodyLines={2} />
           ))}
         </div>
       ) : hotels.length > 0 ? (
@@ -105,11 +106,11 @@ export default function HotelSearch() {
           ))}
         </div>
       ) : searched ? (
-        <div className="text-center py-14 border border-border rounded-xl bg-white">
-          <Search className="h-10 w-10 text-text-placeholder mx-auto mb-2" />
-          <p className="text-body-lg text-ink font-medium">No hotels found</p>
-          <p className="text-body-sm text-text-secondary mt-1">Try adjusting city, guests, rooms, or price filters.</p>
-        </div>
+        <EmptyState
+          icon={Search}
+          title="No hotels found"
+          description="Try adjusting city, guests, rooms, or price filters."
+        />
       ) : null}
     </div>
   );

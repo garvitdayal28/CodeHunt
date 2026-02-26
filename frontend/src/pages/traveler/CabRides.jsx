@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Activity,
   Clock3,
@@ -18,8 +18,12 @@ import StarRatingInput from "../../components/rides/StarRatingInput";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import ConfirmModal from "../../components/ui/ConfirmModal";
+import { Textarea } from "../../components/ui/Input";
 import Modal from "../../components/ui/Modal";
+import PageHeader from "../../components/ui/PageHeader";
+import { PageSectionSkeleton } from "../../components/ui/Skeleton";
 import { useAuth } from "../../contexts/AuthContext";
+import { useToast } from "../../contexts/ToastContext";
 import { useNotificationSound } from "../../hooks/useNotificationSound";
 import { useRidesSocket } from "../../hooks/useRidesSocket";
 
@@ -73,6 +77,7 @@ export default function CabRides() {
 
   const { socket, connected, emitEvent } = useRidesSocket(true);
   const { play } = useNotificationSound();
+  const toast = useToast();
   const mountedRef = useRef(true);
 
   useEffect(() => {
@@ -82,7 +87,31 @@ export default function CabRides() {
     };
   }, []);
 
-  const fetchHistory = async () => {
+  const notifyError = useCallback(
+    (message, title = "Cab rides") => {
+      setError(message);
+      toast.error(title, message);
+    },
+    [toast],
+  );
+
+  const notifySuccess = useCallback(
+    (message, title = "Cab rides") => {
+      setFeedback(message);
+      toast.success(title, message);
+    },
+    [toast],
+  );
+
+  const notifyInfo = useCallback(
+    (message, title = "Cab rides") => {
+      setFeedback(message);
+      toast.info(title, message);
+    },
+    [toast],
+  );
+
+  const fetchHistory = useCallback(async () => {
     try {
       setLoadingHistory(true);
       const res = await api.get("/rides/traveler");
@@ -96,15 +125,15 @@ export default function CabRides() {
         setRequestStartedAt(current.created_at || new Date().toISOString());
       }
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to load rides.");
+      notifyError(err?.response?.data?.message || "Failed to load rides.");
     } finally {
       setLoadingHistory(false);
     }
-  };
+  }, [notifyError]);
 
   useEffect(() => {
     fetchHistory();
-  }, []);
+  }, [fetchHistory]);
 
   useEffect(() => {
     if (activeRide?.status === "QUOTE_SENT") {
@@ -206,8 +235,9 @@ export default function CabRides() {
       }
       if (ride.status === "EXPIRED") {
         setFeedback("");
-        setError(
+        notifyError(
           "No driver accepted in time. Please try again or adjust pickup location.",
+          "Ride request expired",
         );
         play("warning");
       }
@@ -257,7 +287,7 @@ export default function CabRides() {
     const onError = (payload) => {
       setRequestPending(false);
       setRequestSecondsLeft(0);
-      setError(payload?.message || "Ride operation failed.");
+      notifyError(payload?.message || "Ride operation failed.", "Ride error");
       play("warning");
     };
     const onOtpGenerated = (payload) => {
@@ -265,7 +295,7 @@ export default function CabRides() {
       if (!otp) return;
       setTripOtp(otp);
       setOtpModalOpen(true);
-      setFeedback("Your trip OTP is ready. Share it with driver at pickup.");
+      notifyInfo("Your trip OTP is ready. Share it with driver at pickup.", "Pickup OTP");
       play("incoming");
     };
 
@@ -294,7 +324,7 @@ export default function CabRides() {
       socket.off("ride:completed", onStatus);
       socket.off("ride:otp_generated", onOtpGenerated);
     };
-  }, [socket, activeRide, play]);
+  }, [socket, activeRide, fetchHistory, notifyError, notifyInfo, play]);
 
   useEffect(() => {
     if (!requestPending || !requestStartedAt) return undefined;
@@ -321,7 +351,7 @@ export default function CabRides() {
 
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
-      setError("Geolocation is not available in this browser.");
+      notifyError("Geolocation is not available in this browser.");
       return;
     }
     setResolvingLocation(true);
@@ -360,7 +390,7 @@ export default function CabRides() {
       },
       () => {
         setResolvingLocation(false);
-        setError("Unable to fetch current location.");
+        notifyError("Unable to fetch current location.");
       },
     );
   };
@@ -410,7 +440,7 @@ export default function CabRides() {
       setSearching(true);
 
       if (activeRide) {
-        setError("You already have an active ride.");
+        notifyError("You already have an active ride.");
         return;
       }
 
@@ -424,12 +454,12 @@ export default function CabRides() {
       setRequestPending(true);
       setRequestStartedAt(new Date().toISOString());
       setRequestSecondsLeft(45);
-      setFeedback("Request sent. Matching you with nearby drivers now.");
+      notifyInfo("Request sent. Matching you with nearby drivers now.");
       play("info");
     } catch (err) {
       setRequestPending(false);
       setRequestSecondsLeft(0);
-      setError(
+      notifyError(
         err?.response?.data?.message || err.message || "Failed to request cab.",
       );
     } finally {
@@ -442,7 +472,7 @@ export default function CabRides() {
     setQuoteActionLoading(true);
     emitEvent("traveler:accept_quote", { ride_id: activeRide.id });
     setQuoteModalOpen(false);
-    setFeedback("Quote accepted. Waiting for driver to start ride.");
+    notifySuccess("Quote accepted. Waiting for driver to start ride.");
     play("success");
     setQuoteActionLoading(false);
   };
@@ -469,7 +499,7 @@ export default function CabRides() {
       ]);
       play("success");
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to end ride.");
+      notifyError(err?.response?.data?.message || "Failed to end ride.");
       play("warning");
     }
   };
@@ -485,11 +515,11 @@ export default function CabRides() {
       setShowRating(false);
       setRatingStars(0);
       setRatingMessage("");
-      setFeedback("Rating submitted successfully.");
+      notifySuccess("Rating submitted successfully.");
       fetchHistory();
       play("success");
     } catch (err) {
-      setError(err?.response?.data?.message || "Failed to submit rating.");
+      notifyError(err?.response?.data?.message || "Failed to submit rating.");
       play("warning");
     }
   };
@@ -498,10 +528,10 @@ export default function CabRides() {
     if (!tripOtp) return;
     try {
       await navigator.clipboard.writeText(tripOtp);
-      setFeedback("Trip OTP copied. Share this with your driver at pickup.");
+      notifySuccess("Trip OTP copied. Share this with your driver at pickup.");
       play("success");
     } catch {
-      setFeedback("Trip OTP: " + tripOtp);
+      notifyInfo("Trip OTP: " + tripOtp);
     }
   };
 
@@ -512,13 +542,10 @@ export default function CabRides() {
       transition={{ duration: 0.4 }}
       className="space-y-6"
     >
-      <div>
-        <h1 className="text-display-md text-ink">Book A Cab</h1>
-        <p className="text-body-sm text-text-secondary mt-1">
-          Find nearby drivers, approve fare, share OTP at pickup, and track trip
-          live.
-        </p>
-      </div>
+      <PageHeader
+        title="Book A Cab"
+        description="Find nearby drivers, approve fare, share OTP at pickup, and track trip live."
+      />
 
       <AnimatePresence mode="popLayout">
         {error && (
@@ -812,10 +839,7 @@ export default function CabRides() {
       </AnimatePresence>
 
       {loadingHistory ? (
-        <div className="space-y-4">
-          <div className="h-8 w-48 bg-surface-sunken rounded-lg animate-pulse" />
-          <div className="h-64 bg-surface-sunken rounded-xl animate-pulse" />
-        </div>
+        <PageSectionSkeleton titleWidthClass="w-40" blocks={1} blockHeightClass="h-72" />
       ) : (
         <motion.div
           initial={{ opacity: 0 }}
@@ -862,6 +886,7 @@ export default function CabRides() {
         onConfirm={handleEndRide}
         confirmLabel="End Ride"
         confirmVariant="danger"
+        intent="danger"
       />
 
       <Modal
@@ -878,14 +903,8 @@ export default function CabRides() {
         }
       >
         <StarRatingInput value={ratingStars} onChange={setRatingStars} />
-        <textarea
-          className="
-            mt-3 block w-full min-h-24 px-3 py-2
-            bg-white border border-border
-            rounded-lg text-[14px] text-ink placeholder-text-placeholder
-            outline-none transition-all duration-150
-            focus:border-accent focus:ring-2 focus:ring-accent/20
-          "
+        <Textarea
+          className="mt-3"
           placeholder="Optional feedback message"
           value={ratingMessage}
           onChange={(e) => setRatingMessage(e.target.value)}

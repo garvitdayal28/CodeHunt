@@ -1,7 +1,7 @@
 import { Filter, Search } from 'lucide-react';
 
 import Button from '../ui/Button';
-import Input from '../ui/Input';
+import Input, { Select } from '../ui/Input';
 
 const SORT_OPTIONS = [
   { value: 'price_asc', label: 'Price: Low to high' },
@@ -41,18 +41,15 @@ export default function HotelFiltersBar({ value, onChange, onSubmit, loading = f
           onChange={(e) => update('checkout', e.target.value)}
           min={value.checkin || new Date().toISOString().split('T')[0]}
         />
-        <div className="space-y-1.5">
-          <label className="block text-[13px] font-medium text-ink">Sort by</label>
-          <select
-            value={value.sortBy}
-            onChange={(e) => update('sortBy', e.target.value)}
-            className="block w-full h-10 px-3 bg-white border border-border rounded-lg text-[14px] text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
-          >
+        <Select
+          label="Sort by"
+          value={value.sortBy}
+          onChange={(e) => update('sortBy', e.target.value)}
+        >
             {SORT_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
-          </select>
-        </div>
+        </Select>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">

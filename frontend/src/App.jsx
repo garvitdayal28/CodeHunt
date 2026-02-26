@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-d
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import AppLayout from './components/layout/AppLayout';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { ToastProvider } from './contexts/ToastContext';
 
 import AuditLog from './pages/admin/AuditLog';
 import PlatformDashboard from './pages/admin/Dashboard';
@@ -68,61 +69,63 @@ function PublicOnlyRoute({ children }) {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <Routes>
-          <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
-          <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
-          <Route path="/" element={<AuthRedirect />} />
+      <ToastProvider>
+        <Router>
+          <Routes>
+            <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
+            <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
+            <Route path="/" element={<AuthRedirect />} />
 
-          <Route element={<AppLayout />}>
-            <Route element={<ProtectedRoute allowedRoles={['TRAVELER']} />}>
-              <Route path="/traveler/dashboard" element={<TravelerDashboard />} />
-              <Route path="/traveler/itineraries" element={<MyTrips />} />
-              <Route path="/traveler/itineraries/new" element={<CreateItinerary />} />
-              <Route path="/traveler/itineraries/:id" element={<ItineraryDetail />} />
-              <Route path="/traveler/hotels" element={<HotelSearch />} />
-              <Route path="/traveler/hotels/:id" element={<HotelDetail />} />
-              <Route path="/traveler/restaurants" element={<RestaurantSearch />} />
-              <Route path="/traveler/restaurants/:id" element={<RestaurantDetail />} />
-              <Route path="/traveler/bookings" element={<MyBookings />} />
-              <Route path="/traveler/search" element={<HotelSearch />} />
-              <Route path="/traveler/search/hotels" element={<HotelSearch />} />
-              <Route path="/traveler/hotel/:id" element={<HotelDetail />} />
-              <Route path="/traveler/booking/confirm" element={<BookingConfirmation />} />
-              <Route path="/traveler/search/tours" element={<TourSearch />} />
-              <Route path="/traveler/ai-planner" element={<AITripPlanner />} />
-              <Route path="/traveler/cabs" element={<CabRides />} />
-              <Route path="/traveler/profile" element={<TravelerProfile />} />
+            <Route element={<AppLayout />}>
+              <Route element={<ProtectedRoute allowedRoles={['TRAVELER']} />}>
+                <Route path="/traveler/dashboard" element={<TravelerDashboard />} />
+                <Route path="/traveler/itineraries" element={<MyTrips />} />
+                <Route path="/traveler/itineraries/new" element={<CreateItinerary />} />
+                <Route path="/traveler/itineraries/:id" element={<ItineraryDetail />} />
+                <Route path="/traveler/hotels" element={<HotelSearch />} />
+                <Route path="/traveler/hotels/:id" element={<HotelDetail />} />
+                <Route path="/traveler/restaurants" element={<RestaurantSearch />} />
+                <Route path="/traveler/restaurants/:id" element={<RestaurantDetail />} />
+                <Route path="/traveler/bookings" element={<MyBookings />} />
+                <Route path="/traveler/search" element={<HotelSearch />} />
+                <Route path="/traveler/search/hotels" element={<HotelSearch />} />
+                <Route path="/traveler/hotel/:id" element={<HotelDetail />} />
+                <Route path="/traveler/booking/confirm" element={<BookingConfirmation />} />
+                <Route path="/traveler/search/tours" element={<TourSearch />} />
+                <Route path="/traveler/ai-planner" element={<AITripPlanner />} />
+                <Route path="/traveler/cabs" element={<CabRides />} />
+                <Route path="/traveler/profile" element={<TravelerProfile />} />
+              </Route>
+
+              <Route element={<ProtectedRoute allowedRoles={['BUSINESS']} />}>
+                <Route path="/business/dashboard" element={<BusinessDashboard />} />
+                <Route path="/business/rooms" element={<RoomManagement />} />
+                <Route path="/business/menu" element={<MenuManagement />} />
+                <Route path="/business/services" element={<GuideServicesManagement />} />
+                <Route path="/business/rides" element={<BusinessRides />} />
+                <Route path="/business/ratings" element={<BusinessRatings />} />
+              </Route>
+
+              <Route element={<ProtectedRoute allowedRoles={['HOTEL_ADMIN', 'PLATFORM_ADMIN']} />}>
+                <Route path="/hotel/dashboard" element={<HotelDashboard />} />
+                <Route path="/hotel/rooms" element={<RoomManagement />} />
+              </Route>
+
+              <Route element={<ProtectedRoute allowedRoles={['TOUR_OPERATOR', 'PLATFORM_ADMIN']} />}>
+                <Route path="/operator/dashboard" element={<OperatorDashboard />} />
+              </Route>
+
+              <Route element={<ProtectedRoute allowedRoles={['PLATFORM_ADMIN']} />}>
+                <Route path="/admin/dashboard" element={<PlatformDashboard />} />
+                <Route path="/admin/audit" element={<AuditLog />} />
+                <Route path="/admin/disruptions" element={<PlatformDisruptions />} />
+              </Route>
             </Route>
 
-            <Route element={<ProtectedRoute allowedRoles={['BUSINESS']} />}>
-              <Route path="/business/dashboard" element={<BusinessDashboard />} />
-              <Route path="/business/rooms" element={<RoomManagement />} />
-              <Route path="/business/menu" element={<MenuManagement />} />
-              <Route path="/business/services" element={<GuideServicesManagement />} />
-              <Route path="/business/rides" element={<BusinessRides />} />
-              <Route path="/business/ratings" element={<BusinessRatings />} />
-            </Route>
-
-            <Route element={<ProtectedRoute allowedRoles={['HOTEL_ADMIN', 'PLATFORM_ADMIN']} />}>
-              <Route path="/hotel/dashboard" element={<HotelDashboard />} />
-              <Route path="/hotel/rooms" element={<RoomManagement />} />
-            </Route>
-
-            <Route element={<ProtectedRoute allowedRoles={['TOUR_OPERATOR', 'PLATFORM_ADMIN']} />}>
-              <Route path="/operator/dashboard" element={<OperatorDashboard />} />
-            </Route>
-
-            <Route element={<ProtectedRoute allowedRoles={['PLATFORM_ADMIN']} />}>
-              <Route path="/admin/dashboard" element={<PlatformDashboard />} />
-              <Route path="/admin/audit" element={<AuditLog />} />
-              <Route path="/admin/disruptions" element={<PlatformDisruptions />} />
-            </Route>
-          </Route>
-
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Router>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Router>
+      </ToastProvider>
     </AuthProvider>
   );
 }

@@ -1,5 +1,5 @@
 import { MapPin, Users } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 
 import Button from "../ui/Button";
 import Card from "../ui/Card";

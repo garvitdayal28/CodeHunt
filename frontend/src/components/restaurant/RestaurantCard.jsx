@@ -1,5 +1,5 @@
 import { MapPin, UtensilsCrossed, ArrowRight } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion } from "motion/react";
 import Button from "../ui/Button";
 
 export default function RestaurantCard({ restaurant, onViewMenu }) {

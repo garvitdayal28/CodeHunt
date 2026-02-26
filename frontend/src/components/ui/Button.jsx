@@ -20,12 +20,18 @@ export default function Button({
   variant = "primary",
   size = "md",
   loading = false,
+  loadingText = "",
   success = false,
   icon: Icon,
   className = "",
+  fullWidth = false,
+  ariaBusyLabel = "",
+  "aria-label": ariaLabel,
   disabled,
   ...props
 }) {
+  const content = loading && loadingText ? loadingText : children;
+
   return (
     <motion.button
       whileTap={{ scale: disabled || loading ? 1 : 0.98 }}
@@ -33,9 +39,13 @@ export default function Button({
         inline-flex items-center justify-center font-medium
         transition-all duration-150 ease-out cursor-pointer
         disabled:opacity-40 disabled:cursor-not-allowed
+        ${fullWidth ? "w-full" : ""}
         ${variants[variant]} ${sizes[size]} ${className}
       `}
       disabled={disabled || loading}
+      aria-busy={loading}
+      aria-live={loading ? "polite" : undefined}
+      aria-label={loading && ariaBusyLabel ? ariaBusyLabel : ariaLabel}
       {...props}
     >
       {loading ? (
@@ -45,7 +55,7 @@ export default function Button({
       ) : Icon ? (
         <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
       ) : null}
-      {children}
+      {content}
     </motion.button>
   );
 }

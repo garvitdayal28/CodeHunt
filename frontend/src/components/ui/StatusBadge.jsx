@@ -28,8 +28,8 @@ const statusConfig = {
   PENDING: { bg: "bg-warning-soft", text: "text-warning", label: "Pending" },
   UPCOMING: { bg: "bg-info-soft", text: "text-info", label: "Upcoming" },
   RESCHEDULED: {
-    bg: "bg-accent-soft",
-    text: "text-accent",
+    bg: "bg-info-soft",
+    text: "text-info",
     label: "Rescheduled",
   },
   DRAFT: {
@@ -37,10 +37,28 @@ const statusConfig = {
     text: "text-text-secondary",
     label: "Draft",
   },
+  REQUESTED: { bg: "bg-info-soft", text: "text-info", label: "Requested" },
+  QUOTE_SENT: { bg: "bg-warning-soft", text: "text-warning", label: "Quote Sent" },
+  QUOTE_ACCEPTED: { bg: "bg-success-soft", text: "text-success", label: "Quote Accepted" },
+  DRIVER_EN_ROUTE: { bg: "bg-info-soft", text: "text-info", label: "Driver En Route" },
+  ACCEPTED_PENDING_QUOTE: {
+    bg: "bg-warning-soft",
+    text: "text-warning",
+    label: "Pending Quote",
+  },
+  CANCELLED: { bg: "bg-danger-soft", text: "text-danger", label: "Cancelled" },
 };
 
 export default function StatusBadge({ status, className = "" }) {
-  const config = statusConfig[status] || statusConfig.PENDING;
+  const config =
+    statusConfig[status] || {
+      bg: "bg-surface-sunken",
+      text: "text-text-secondary",
+      label: String(status || "Unknown")
+        .replaceAll("_", " ")
+        .toLowerCase()
+        .replace(/\b\w/g, (ch) => ch.toUpperCase()),
+    };
 
   return (
     <motion.span

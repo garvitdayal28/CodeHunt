@@ -8,8 +8,12 @@ import GuideServiceForm from "../../components/guide/GuideServiceForm";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import ConfirmModal from "../../components/ui/ConfirmModal";
+import EmptyState from "../../components/ui/EmptyState";
 import Modal from "../../components/ui/Modal";
+import PageHeader from "../../components/ui/PageHeader";
+import { SkeletonCard } from "../../components/ui/Skeleton";
 import { useAuth } from "../../contexts/AuthContext";
+import { useToast } from "../../contexts/ToastContext";
 
 const EMPTY_GUIDE_SERVICE_FORM = {
   service_type: "ACTIVITY",
@@ -91,6 +95,7 @@ function formToPayload(form) {
 
 export default function GuideServicesManagement() {
   const { currentUser, businessType } = useAuth();
+  const toast = useToast();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -129,6 +134,14 @@ export default function GuideServicesManagement() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (error) toast.error("Guide services", error);
+  }, [error, toast]);
+
+  useEffect(() => {
+    if (success) toast.success("Guide services", success);
+  }, [success, toast]);
 
   const openCreate = () => {
     setEditingId("");
@@ -207,18 +220,15 @@ export default function GuideServicesManagement() {
       transition={{ duration: 0.4 }}
       className="space-y-6"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-display-md text-ink">Manage Services</h1>
-          <p className="text-body-sm text-text-secondary mt-1">
-            Create activity and guided-tour packages with images, pricing, and
-            visibility control.
-          </p>
-        </div>
-        <Button icon={Plus} onClick={openCreate}>
-          Add Package
-        </Button>
-      </div>
+      <PageHeader
+        title="Manage Services"
+        description="Create activity and guided-tour packages with images, pricing, and visibility control."
+        action={(
+          <Button icon={Plus} onClick={openCreate}>
+            Add Package
+          </Button>
+        )}
+      />
 
       <AnimatePresence mode="popLayout">
         {error && (
@@ -246,31 +256,25 @@ export default function GuideServicesManagement() {
       {loading ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {[...Array(4)].map((_, idx) => (
-            <div
-              key={idx}
-              className="h-52 bg-surface-sunken rounded-xl animate-pulse"
-            />
+            <SkeletonCard key={idx} className="h-56" bodyLines={2} />
           ))}
         </div>
       ) : items.length === 0 ? (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="rounded-xl border border-border bg-white p-8 text-center"
+          className="rounded-xl border border-border bg-white p-4"
         >
-          <Compass className="h-8 w-8 text-text-muted mx-auto" />
-          <p className="text-[15px] text-ink font-medium mt-3">
-            No service packages yet
-          </p>
-          <p className="text-[13px] text-text-secondary mt-1">
-            Add your first activity or guided-tour package to start getting
-            discovered.
-          </p>
-          <div className="mt-4">
-            <Button icon={Plus} onClick={openCreate}>
-              Add Package
-            </Button>
-          </div>
+          <EmptyState
+            icon={Compass}
+            title="No service packages yet"
+            description="Add your first activity or guided-tour package to start getting discovered."
+            action={(
+              <Button icon={Plus} onClick={openCreate}>
+                Add Package
+              </Button>
+            )}
+          />
         </motion.div>
       ) : (
         <motion.div
@@ -337,6 +341,7 @@ export default function GuideServicesManagement() {
         onConfirm={handleDelete}
         confirmLabel="Delete"
         confirmVariant="danger"
+        intent="danger"
       />
     </motion.div>
   );

@@ -1,4 +1,4 @@
-import Input from '../ui/Input';
+import Input, { Textarea } from '../ui/Input';
 import ImageUploadInput from './ImageUploadInput';
 
 export const EMPTY_ROOM_FORM = {
@@ -95,21 +95,12 @@ export default function RoomTypeForm({ value, onChange, uploadFolder, uploadPath
         placeholder="AC, TV, Wifi, Balcony"
       />
 
-      <div className="space-y-1.5">
-        <label className="block text-[13px] font-medium text-ink">Description</label>
-        <textarea
-          className="
-            block w-full min-h-24 px-3 py-2
-            bg-white border border-border rounded-lg
-            text-[14px] text-ink placeholder-text-placeholder
-            outline-none transition-all duration-150
-            focus:border-accent focus:ring-2 focus:ring-accent/20
-          "
-          value={value.description}
-          onChange={(e) => update('description', e.target.value)}
-          placeholder="Spacious room with city view, work desk and lounge seating."
-        />
-      </div>
+      <Textarea
+        label="Description"
+        value={value.description}
+        onChange={(e) => update('description', e.target.value)}
+        placeholder="Spacious room with city view, work desk and lounge seating."
+      />
 
       <ImageUploadInput
         label="Room Images"

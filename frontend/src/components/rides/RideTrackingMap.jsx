@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import {
   MapContainer,
   Marker,
@@ -15,6 +15,9 @@ import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
 import Card from "../ui/Card";
+import Skeleton from "../ui/Skeleton";
+import EmptyState from "../ui/EmptyState";
+import { MapPin } from "lucide-react";
 
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
@@ -48,6 +51,10 @@ function makePinIcon(color) {
   });
 }
 
+const SOURCE_ICON = makePinIcon("#0284c7");
+const DESTINATION_ICON = makePinIcon("#dc2626");
+const DRIVER_ICON = makePinIcon("#16a34a");
+
 function FitBounds({ points }) {
   const map = useMap();
   useEffect(() => {
@@ -75,22 +82,44 @@ function MapResizer() {
   return null;
 }
 
-export default function RideTrackingMap({ ride }) {
+export default function RideTrackingMap({ ride, loading = false }) {
+  if (loading) {
+    return (
+      <Card className="overflow-hidden !p-0">
+        <div className="p-4 border-b border-border bg-surface">
+          <Skeleton className="h-4 w-32" rounded="md" />
+        </div>
+        <Skeleton className="h-72 w-full" rounded="lg" />
+      </Card>
+    );
+  }
+
   const source = toLatLng(ride?.source);
   const destination = toLatLng(ride?.destination);
   const driver = toLatLng(ride?.driver_location);
   const center = driver || source || destination || [20.5937, 78.9629];
-  const linePoints = useMemo(() => {
-    if (driver && destination) return [driver, destination];
-    if (source && destination) return [source, destination];
-    return [];
-  }, [driver, source, destination]);
+  const linePoints = driver && destination
+    ? [driver, destination]
+    : source && destination
+      ? [source, destination]
+      : [];
   const allPoints = [source, destination, driver].filter(Boolean);
-  const sourceIcon = useMemo(() => makePinIcon("#0284c7"), []);
-  const destinationIcon = useMemo(() => makePinIcon("#dc2626"), []);
-  const driverIcon = useMemo(() => makePinIcon("#16a34a"), []);
 
   if (!ride) return null;
+
+  if (!source && !destination && !driver) {
+    return (
+      <Card>
+        <h3 className="text-label-lg text-ink font-semibold">Live Tracking</h3>
+        <EmptyState
+          icon={MapPin}
+          title="Tracking data unavailable"
+          description="Live location points will appear once the ride starts sharing coordinates."
+          className="mt-4"
+        />
+      </Card>
+    );
+  }
 
   return (
     <motion.div
@@ -122,17 +151,17 @@ export default function RideTrackingMap({ ride }) {
             />
             <FitBounds points={allPoints} />
             {source && (
-              <Marker position={source} icon={sourceIcon}>
+              <Marker position={source} icon={SOURCE_ICON}>
                 <Tooltip>Pickup</Tooltip>
               </Marker>
             )}
             {destination && (
-              <Marker position={destination} icon={destinationIcon}>
+              <Marker position={destination} icon={DESTINATION_ICON}>
                 <Tooltip>Destination</Tooltip>
               </Marker>
             )}
             {driver && (
-              <Marker position={driver} icon={driverIcon}>
+              <Marker position={driver} icon={DRIVER_ICON}>
                 <Tooltip>Driver</Tooltip>
               </Marker>
             )}

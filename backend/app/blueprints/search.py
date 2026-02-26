@@ -539,9 +539,11 @@ def search_tours():
             tours.append(tour)
 
         guide_services = []
-        guide_query = db.collection_group("guide_services").where("is_active", "==", True)
+        guide_query = db.collection_group("guide_services")
         for doc in guide_query.stream():
             service = doc.to_dict() or {}
+            if service.get("is_active") is not True:
+                continue
             if not _guide_service_matches_destination(service, destination):
                 continue
             if not _guide_service_matches_category(service, category):

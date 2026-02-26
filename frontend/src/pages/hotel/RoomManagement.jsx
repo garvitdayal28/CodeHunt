@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BedDouble, Plus } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -9,8 +9,12 @@ import RoomTypeForm, {
 } from "../../components/hotel/RoomTypeForm";
 import Button from "../../components/ui/Button";
 import ConfirmModal from "../../components/ui/ConfirmModal";
+import EmptyState from "../../components/ui/EmptyState";
 import Modal from "../../components/ui/Modal";
+import PageHeader from "../../components/ui/PageHeader";
+import { SkeletonCard } from "../../components/ui/Skeleton";
 import { useAuth } from "../../contexts/AuthContext";
+import { useToast } from "../../contexts/ToastContext";
 
 function toForm(room) {
   if (!room) return { ...EMPTY_ROOM_FORM };
@@ -45,6 +49,7 @@ function formToPayload(form) {
 
 export default function RoomManagement() {
   const { currentUser, userRole, businessType } = useAuth();
+  const toast = useToast();
   const [rooms, setRooms] = useState([]);
   const [propertyId, setPropertyId] = useState("");
   const [loading, setLoading] = useState(true);
@@ -69,7 +74,7 @@ export default function RoomManagement() {
     ? "/admin/hotel/upload-image"
     : "/business/hotel/upload-image";
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError("");
@@ -99,11 +104,19 @@ export default function RoomManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [canManageRooms, currentUser?.uid, isAdminHotelView]);
 
   useEffect(() => {
     loadData();
-  }, [canManageRooms, isAdminHotelView, currentUser?.uid]);
+  }, [loadData]);
+
+  useEffect(() => {
+    if (error) toast.error("Rooms", error);
+  }, [error, toast]);
+
+  useEffect(() => {
+    if (success) toast.success("Rooms", success);
+  }, [success, toast]);
 
   const openCreate = () => {
     setEditingRoomId("");
@@ -166,18 +179,15 @@ export default function RoomManagement() {
       transition={{ duration: 0.4 }}
       className="space-y-6"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-display-md text-ink">Room Management</h1>
-          <p className="text-body-sm text-text-secondary mt-1">
-            Create room categories with pricing, inventory and photos for
-            booking-ready listings.
-          </p>
-        </div>
-        <Button icon={Plus} onClick={openCreate}>
-          Add Room Type
-        </Button>
-      </div>
+      <PageHeader
+        title="Room Management"
+        description="Create room categories with pricing, inventory and photos for booking-ready listings."
+        action={(
+          <Button icon={Plus} onClick={openCreate}>
+            Add Room Type
+          </Button>
+        )}
+      />
 
       <AnimatePresence mode="popLayout">
         {error && (
@@ -205,30 +215,25 @@ export default function RoomManagement() {
       {loading ? (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {[...Array(4)].map((_, idx) => (
-            <div
-              key={idx}
-              className="h-52 bg-surface-sunken rounded-xl animate-pulse"
-            />
+            <SkeletonCard key={idx} className="h-56" bodyLines={2} />
           ))}
         </div>
       ) : rooms.length === 0 ? (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="rounded-xl border border-border bg-white p-8 text-center"
+          className="rounded-xl border border-border bg-white p-4"
         >
-          <BedDouble className="h-8 w-8 text-text-muted mx-auto" />
-          <p className="text-[15px] text-ink font-medium mt-3">
-            No room types created yet
-          </p>
-          <p className="text-[13px] text-text-secondary mt-1">
-            Create your first room category to start selling inventory.
-          </p>
-          <div className="mt-4">
-            <Button icon={Plus} onClick={openCreate}>
-              Add Room Type
-            </Button>
-          </div>
+          <EmptyState
+            icon={BedDouble}
+            title="No room types created yet"
+            description="Create your first room category to start selling inventory."
+            action={(
+              <Button icon={Plus} onClick={openCreate}>
+                Add Room Type
+              </Button>
+            )}
+          />
         </motion.div>
       ) : (
         <motion.div
@@ -299,6 +304,7 @@ export default function RoomManagement() {
         onConfirm={handleDelete}
         confirmLabel="Delete"
         confirmVariant="danger"
+        intent="danger"
       />
     </motion.div>
   );

@@ -2,52 +2,34 @@ import { Calendar, Clock, MapPin, Navigation, User } from "lucide-react";
 import { motion } from "motion/react";
 import Card from "../ui/Card";
 import { formatDate } from "../../utils/dateUtils";
-
-function StatusBadge({ status }) {
-  const getStatusStyles = () => {
-    switch (status) {
-      case "COMPLETED":
-        return "bg-green-100 text-green-700 border-green-200";
-      case "CANCELLED":
-        return "bg-red-100 text-red-700 border-red-200";
-      case "EXPIRED":
-        return "bg-gray-100 text-gray-700 border-gray-200";
-      case "IN_PROGRESS":
-      case "DRIVER_EN_ROUTE":
-        return "bg-blue-100 text-blue-700 border-blue-200";
-      default:
-        return "bg-orange-100 text-orange-700 border-orange-200";
-    }
-  };
-
-  return (
-    <span
-      className={`px-2.5 py-1 rounded-full text-[11px] font-medium border ${getStatusStyles()}`}
-    >
-      {status.replace(/_/g, " ")}
-    </span>
-  );
-}
+import StatusBadge from "../ui/StatusBadge";
+import { TableSkeleton } from "../ui/Skeleton";
+import EmptyState from "../ui/EmptyState";
 
 export default function RideHistoryTable({
   title,
   rides = [],
   travelerView = true,
+  loading = false,
 }) {
+  if (loading) {
+    return <TableSkeleton columns={5} rows={6} />;
+  }
+
   return (
-    <Card className="p-0! overflow-hidden">
+    <Card className="!p-0 overflow-hidden">
       <div className="p-5 border-b border-border bg-surface">
         <h3 className="text-label-lg text-ink font-semibold">{title}</h3>
       </div>
 
       {rides.length === 0 ? (
-        <div className="p-8 text-center flex flex-col items-center justify-center">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-surface-hover mb-3">
-            <Navigation className="w-6 h-6 text-text-secondary" />
-          </div>
-          <p className="text-[14px] text-text-secondary">
-            No rides found in your history.
-          </p>
+        <div className="p-4">
+          <EmptyState
+            icon={Navigation}
+            title="No rides found in your history."
+            description="Your completed, cancelled, and active rides will appear here."
+            className="border-0 bg-transparent py-8"
+          />
         </div>
       ) : (
         <div className="overflow-x-auto">

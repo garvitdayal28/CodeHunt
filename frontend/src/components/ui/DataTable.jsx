@@ -1,13 +1,21 @@
 import { motion, AnimatePresence } from "motion/react";
+import { TableSkeleton } from "./Skeleton";
 
 export default function DataTable({
   columns,
   data,
   onRowClick,
   emptyMessage = "No data found.",
+  loading = false,
+  skeletonRows = 5,
+  className = "",
 }) {
+  if (loading) {
+    return <TableSkeleton columns={columns.length || 5} rows={skeletonRows} className={className} />;
+  }
+
   return (
-    <div className="card-surface bg-white border border-border rounded-xl shadow-xs overflow-hidden">
+    <div className={`card-surface bg-white border border-border rounded-xl shadow-xs overflow-hidden ${className}`}>
       <div className="overflow-x-auto">
         <table className="min-w-full">
           <thead>
