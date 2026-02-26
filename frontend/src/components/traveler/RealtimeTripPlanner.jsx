@@ -3,7 +3,6 @@ import { Calendar, Loader2, MapPin, Plane, Sparkles, Train } from 'lucide-react'
 
 import api from '../../api/axios';
 import { usePlannerSocket } from '../../hooks/usePlannerSocket';
-import LiveIndicator from '../ui/LiveIndicator';
 import Button from '../ui/Button';
 
 const DEFAULT_FORM = {
@@ -220,7 +219,13 @@ export default function RealtimeTripPlanner() {
             RAG-powered itinerary with live progress and streamed output.
           </p>
         </div>
-        <LiveIndicator connected={connected} label="PLANNER LIVE" />
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-sunken border border-border relative">
+          <img src="/Logo-removedbg.png" alt="TripAllied" className="h-4 w-4 object-contain" />
+          <span className="text-[10px] font-bold text-ink tracking-wider uppercase">TripAllied AI</span>
+          {connected && (
+            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-success animate-pulse-live border-2 border-white" title="Live Connection Active" />
+          )}
+        </div>
       </div>
 
       {(error || socketError) && (

@@ -63,6 +63,7 @@ export default function CabRides() {
   const [resolvingLocation, setResolvingLocation] = useState(false);
   const [sourceDisplayAddress, setSourceDisplayAddress] = useState("");
   const [sourceCity, setSourceCity] = useState("");
+  const [sourceCoords, setSourceCoords] = useState(null);
   const [sourceSuggestions, setSourceSuggestions] = useState([]);
   const [destinationSuggestions, setDestinationSuggestions] = useState([]);
   const [showSourceSuggestions, setShowSourceSuggestions] = useState(false);
@@ -202,10 +203,10 @@ export default function CabRides() {
       try {
         const res = await api.post("/rides/geocode/suggest", {
           query: q,
-          city_hint: source || undefined,
+          city_hint: sourceCity || undefined,
           limit: 5,
-          lat: currentCoords?.lat,
-          lng: currentCoords?.lng,
+          lat: sourceCoords?.lat || currentCoords?.lat,
+          lng: sourceCoords?.lng || currentCoords?.lng,
         });
         setDestinationSuggestions(res?.data?.data || []);
         setShowDestinationSuggestions(true);
@@ -216,7 +217,7 @@ export default function CabRides() {
       }
     }, 450);
     return () => clearTimeout(timer);
-  }, [destination, source, currentCoords?.lat, currentCoords?.lng]);
+  }, [destination, sourceCity, sourceCoords, currentCoords?.lat, currentCoords?.lng]);
 
   useEffect(() => {
     if (!socket) return undefined;
@@ -380,6 +381,7 @@ export default function CabRides() {
             setSource(address);
             setSourceDisplayAddress(address);
             setSourceCity((resolved?.city || "").trim());
+            setSourceCoords({ lat, lng });
           }
         } catch {
           if (mountedRef.current) {
@@ -590,7 +592,7 @@ export default function CabRides() {
           </div>
           <div className="space-y-1.5 relative" ref={sourceBoxRef}>
             <label className="block text-[13px] font-medium text-ink">
-              Source
+              Pickup
             </label>
             <input
               type="text"
@@ -608,9 +610,10 @@ export default function CabRides() {
                 setCurrentCoords(null);
                 setSourceDisplayAddress("");
                 setSourceCity("");
+                setSourceCoords(null);
                 setSource(e.target.value);
               }}
-              placeholder="Pickup address"
+              placeholder="Pickup location"
             />
             {showSourceSuggestions &&
               (loadingSourceSuggestions || sourceSuggestions.length > 0) && (
@@ -629,6 +632,7 @@ export default function CabRides() {
                         setSource(item.address);
                         setSourceDisplayAddress(item.address);
                         setSourceCity((item.city || "").trim());
+                        setSourceCoords({ lat: item.lat, lng: item.lng });
                         setShowSourceSuggestions(false);
                       }}
                     >
