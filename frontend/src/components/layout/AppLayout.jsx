@@ -26,7 +26,8 @@ const roleNavigation = {
   TRAVELER: [
     { name: 'Dashboard', href: '/traveler/dashboard', icon: LayoutDashboard },
     { name: 'My Trips', href: '/traveler/itineraries', icon: MapPin },
-    { name: 'Hotels', href: '/traveler/hotels', icon: Search, aliases: ['/traveler/search', '/traveler/search/hotels', '/traveler/hotel/'] },
+    { name: 'Hotels', href: '/traveler/hotels', icon: Search, aliases: ['/traveler/search/hotels', '/traveler/hotel/'] },
+    { name: 'Tours & Activities', href: '/traveler/search/tours', icon: Ticket, aliases: ['/traveler/tours/'] },
     { name: 'Restaurants', href: '/traveler/restaurants', icon: UtensilsCrossed },
     { name: 'My Bookings', href: '/traveler/bookings', icon: Calendar },
     { name: 'Cab', href: '/traveler/cabs', icon: Car },

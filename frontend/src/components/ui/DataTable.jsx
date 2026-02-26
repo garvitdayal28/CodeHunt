@@ -1,4 +1,11 @@
-export default function DataTable({ columns, data, onRowClick, emptyMessage = 'No data found.' }) {
+import { motion, AnimatePresence } from "motion/react";
+
+export default function DataTable({
+  columns,
+  data,
+  onRowClick,
+  emptyMessage = "No data found.",
+}) {
   return (
     <div className="card-surface bg-white border border-border rounded-xl shadow-xs overflow-hidden">
       <div className="overflow-x-auto">
@@ -18,32 +25,50 @@ export default function DataTable({ columns, data, onRowClick, emptyMessage = 'N
             </tr>
           </thead>
           <tbody>
-            {data.length === 0 ? (
-              <tr>
-                <td colSpan={columns.length} className="px-4 py-16 text-center text-body-sm text-text-muted">
-                  {emptyMessage}
-                </td>
-              </tr>
-            ) : (
-              data.map((row, i) => (
-                <tr
-                  key={row.id || i}
-                  onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  className={`
-                    h-[48px] transition-colors duration-100
-                    border-b border-border-light last:border-b-0
-                    ${onRowClick ? 'cursor-pointer' : ''}
-                    hover:bg-surface-sunken/60
-                  `}
+            <AnimatePresence mode="popLayout">
+              {data.length === 0 ? (
+                <motion.tr
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
                 >
-                  {columns.map((col) => (
-                    <td key={col.key} className="px-4 py-3 text-[14px] text-ink whitespace-nowrap">
-                      {col.render ? col.render(row[col.key], row) : row[col.key]}
-                    </td>
-                  ))}
-                </tr>
-              ))
-            )}
+                  <td
+                    colSpan={columns.length}
+                    className="px-4 py-16 text-center text-body-sm text-text-muted"
+                  >
+                    {emptyMessage}
+                  </td>
+                </motion.tr>
+              ) : (
+                data.map((row, i) => (
+                  <motion.tr
+                    key={row.id || i}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.2, delay: i * 0.05 }}
+                    onClick={onRowClick ? () => onRowClick(row) : undefined}
+                    className={`
+                      h-[48px] transition-colors duration-100
+                      border-b border-border-light last:border-b-0
+                      ${onRowClick ? "cursor-pointer" : ""}
+                      hover:bg-surface-sunken/60
+                    `}
+                  >
+                    {columns.map((col) => (
+                      <td
+                        key={col.key}
+                        className="px-4 py-3 text-[14px] text-ink whitespace-nowrap"
+                      >
+                        {col.render
+                          ? col.render(row[col.key], row)
+                          : row[col.key]}
+                      </td>
+                    ))}
+                  </motion.tr>
+                ))
+              )}
+            </AnimatePresence>
           </tbody>
         </table>
       </div>

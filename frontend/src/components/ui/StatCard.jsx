@@ -1,26 +1,39 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
+import { motion } from "motion/react";
 
 const accentColors = {
-  primary: 'border-t-primary',
-  blue:    'border-t-blue',
-  gold:    'border-t-gold',
-  danger:  'border-t-danger',
-  success: 'border-t-success',
+  primary: "border-t-primary",
+  blue: "border-t-blue",
+  gold: "border-t-gold",
+  danger: "border-t-danger",
+  success: "border-t-success",
 };
 
-export default function StatCard({ title, value, icon: Icon, accent = 'primary', index = 0, className = '' }) {
+export default function StatCard({
+  title,
+  value,
+  icon: Icon,
+  accent = "primary",
+  index = 0,
+  className = "",
+}) {
   const [displayValue, setDisplayValue] = useState(0);
   const prevValue = useRef(value);
 
   useEffect(() => {
-    if (typeof value !== 'number') { setDisplayValue(value); return; }
+    if (typeof value !== "number") {
+      setDisplayValue(value);
+      return;
+    }
     const start = prevValue.current || 0;
     const end = value;
     const duration = 500;
     const startTime = performance.now();
     const animate = (t) => {
       const p = Math.min((t - startTime) / duration, 1);
-      setDisplayValue(Math.round(start + (end - start) * (1 - Math.pow(1 - p, 3))));
+      setDisplayValue(
+        Math.round(start + (end - start) * (1 - Math.pow(1 - p, 3))),
+      );
       if (p < 1) requestAnimationFrame(animate);
     };
     requestAnimationFrame(animate);
@@ -28,11 +41,17 @@ export default function StatCard({ title, value, icon: Icon, accent = 'primary',
   }, [value]);
 
   return (
-    <div className={`
-      card-surface bg-white border border-border rounded-xl shadow-xs
-      border-t-2 ${accentColors[accent]}
-      p-5 animate-fade-in-up stagger-${index + 1} ${className}
-    `}>
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, delay: index * 0.1 }}
+      whileHover={{ y: -4, transition: { duration: 0.2 } }}
+      className={`
+        card-surface bg-white border border-border rounded-xl shadow-xs
+        border-t-2 ${accentColors[accent]}
+        p-5 ${className}
+      `}
+    >
       <div className="flex items-center justify-between mb-3">
         <span className="text-body-sm text-text-secondary">{title}</span>
         {Icon && (
@@ -42,8 +61,8 @@ export default function StatCard({ title, value, icon: Icon, accent = 'primary',
         )}
       </div>
       <div className="text-[28px] font-semibold text-ink tracking-tight">
-        {typeof value === 'number' ? displayValue.toLocaleString() : value}
+        {typeof value === "number" ? displayValue.toLocaleString() : value}
       </div>
-    </div>
+    </motion.div>
   );
 }

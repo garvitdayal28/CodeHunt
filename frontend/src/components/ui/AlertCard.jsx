@@ -1,22 +1,28 @@
-import { Clock } from 'lucide-react';
-import Button from './Button';
+import { Clock } from "lucide-react";
+import { motion } from "motion/react";
+import Button from "./Button";
 
 export default function AlertCard({
   title,
   message,
   timestamp,
-  severity = 'danger',
+  severity = "danger",
   actions = [],
-  className = ''
+  className = "",
 }) {
-  const borderColor = severity === 'warning' ? 'border-l-warning' : 'border-l-danger';
+  const borderColor =
+    severity === "warning" ? "border-l-warning" : "border-l-danger";
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.3 }}
       className={`
         card-surface bg-white rounded-lg border border-border shadow-xs
         border-l-2 ${borderColor}
-        p-4 animate-slide-in
+        p-4
         ${className}
       `}
     >
@@ -31,12 +37,17 @@ export default function AlertCard({
       {actions.length > 0 && (
         <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
           {actions.map((action, i) => (
-            <Button key={i} variant={i === 0 ? 'primary' : 'ghost'} size="sm" onClick={action.onClick}>
+            <Button
+              key={i}
+              variant={i === 0 ? "primary" : "ghost"}
+              size="sm"
+              onClick={action.onClick}
+            >
               {action.label}
             </Button>
           ))}
         </div>
       )}
-    </div>
+    </motion.div>
   );
 }

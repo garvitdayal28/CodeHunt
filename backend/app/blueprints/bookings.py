@@ -47,6 +47,13 @@ def _extract_itinerary_id(doc):
     return parent.id if parent else None
 
 
+def _parse_datetime_value(value):
+    try:
+        return datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
 def _get_itinerary_for_traveler(db, itinerary_id, traveler_uid):
     itinerary_ref = db.collection("itineraries").document(itinerary_id)
     itinerary_doc = itinerary_ref.get()
@@ -401,37 +408,187 @@ def get_my_hotel_bookings():
 @require_auth
 @require_role("TRAVELER")
 def create_activity():
-    """Add an activity booking to an itinerary."""
+    """Add an activity booking (tour or guide service) to an itinerary."""
     data = request.get_json()
     if not data:
         return error_response("INVALID_BODY", "Request body must be JSON.", 400)
 
-    required = ["itinerary_id", "tour_id", "time_slot_id", "scheduled_time"]
-    for field in required:
-        if field not in data:
-            return error_response("MISSING_FIELDS", f"{field} is required.", 400)
+    itinerary_id = str(data.get("itinerary_id") or "").strip()
+    if not itinerary_id:
+        return error_response("MISSING_FIELDS", "itinerary_id is required.", 400)
 
     db = get_firestore_client()
     uid = g.current_user["uid"]
+    traveler_name = g.current_user["claims"].get("name", "")
 
+    itinerary_doc, itinerary_error = _get_itinerary_for_traveler(db, itinerary_id, uid)
+    if itinerary_error:
+        return itinerary_error
+
+    itinerary_data = itinerary_doc.to_dict() or {}
+    source = str(data.get("source") or "TOUR").strip().upper()
+    if source not in {"TOUR", "GUIDE_SERVICE"}:
+        return error_response("INVALID_SOURCE", "source must be TOUR or GUIDE_SERVICE.", 400)
+
+    participants = _to_int(data.get("participants"), 1)
+    if participants < 1:
+        return error_response("INVALID_PARTICIPANTS", "participants must be at least 1.", 400)
+
+    now_iso = datetime.utcnow().isoformat()
     activity_data = {
         "traveler_uid": uid,
-        "traveler_name": g.current_user["claims"].get("name", ""),
-        "tour_id": data["tour_id"],
-        "tour_name": data.get("tour_name", ""),
-        "time_slot_id": data["time_slot_id"],
-        "scheduled_time": data["scheduled_time"],
+        "traveler_name": traveler_name,
+        "itinerary_id": itinerary_id,
+        "itinerary_destination": itinerary_data.get("destination") or "",
+        "participants": participants,
         "status": "UPCOMING",
-        "created_at": datetime.utcnow().isoformat(),
+        "source": source,
+        "created_at": now_iso,
+        "updated_at": now_iso,
     }
+    slot_ref_for_update = None
+    slot_next_booked_count = None
 
-    doc_ref = (
-        db.collection("itineraries")
-        .document(data["itinerary_id"])
-        .collection("activities")
-        .add(activity_data)
-    )
-    activity_data["id"] = doc_ref[1].id
+    if source == "TOUR":
+        tour_id = str(data.get("tour_id") or "").strip()
+        if not tour_id:
+            return error_response("MISSING_FIELDS", "tour_id is required for TOUR activity.", 400)
+
+        tour_doc = db.collection("tours").document(tour_id).get()
+        if not tour_doc.exists:
+            return error_response("NOT_FOUND", "Selected tour not found.", 404)
+        tour = tour_doc.to_dict() or {}
+
+        time_slot_id = str(data.get("time_slot_id") or "").strip()
+        scheduled_time = data.get("scheduled_time")
+        if time_slot_id:
+            slot_ref = db.collection("tours").document(tour_id).collection("time_slots").document(time_slot_id)
+            slot_doc = slot_ref.get()
+            if not slot_doc.exists:
+                return error_response("NOT_FOUND", "Selected time slot not found.", 404)
+
+            slot = slot_doc.to_dict() or {}
+            capacity = _to_int(slot.get("capacity"), 0)
+            booked_count = _to_int(slot.get("booked_count"), 0)
+            remaining = max(0, capacity - booked_count) if capacity > 0 else 0
+            if capacity > 0 and participants > remaining:
+                return error_response(
+                    "INSUFFICIENT_CAPACITY",
+                    f"Only {remaining} seat(s) are available for this time slot.",
+                    409,
+                )
+
+            scheduled_time = slot.get("scheduled_time")
+            slot_ref_for_update = slot_ref
+            slot_next_booked_count = booked_count + participants
+
+        if not scheduled_time:
+            return error_response(
+                "MISSING_FIELDS",
+                "scheduled_time is required when time_slot_id is not provided.",
+                400,
+            )
+        if _parse_datetime_value(scheduled_time) is None:
+            return error_response("INVALID_DATETIME", "scheduled_time must be a valid ISO datetime.", 400)
+
+        price = _to_float(tour.get("price"), _to_float(data.get("price"), 0.0))
+        total_price = round(price * participants, 2)
+        location = tour.get("location") or tour.get("destination") or data.get("location") or ""
+
+        activity_data.update(
+            {
+                "tour_id": tour_id,
+                "tour_name": data.get("tour_name") or tour.get("name") or "",
+                "time_slot_id": time_slot_id or None,
+                "scheduled_time": scheduled_time,
+                "price_per_person": price,
+                "total_price": total_price,
+                "currency": "INR",
+                "location": location,
+                "provider_uid": tour.get("operator_uid"),
+                "provider_name": tour.get("operator_name") or "",
+                "service_type": "TOUR",
+            }
+        )
+    else:
+        guide_service_id = str(data.get("guide_service_id") or "").strip()
+        guide_owner_uid = str(data.get("guide_owner_uid") or "").strip()
+        if not guide_service_id or not guide_owner_uid:
+            return error_response(
+                "MISSING_FIELDS",
+                "guide_service_id and guide_owner_uid are required for GUIDE_SERVICE activity.",
+                400,
+            )
+
+        service_ref = db.collection("users").document(guide_owner_uid).collection("guide_services").document(guide_service_id)
+        service_doc = service_ref.get()
+        if not service_doc.exists:
+            return error_response("NOT_FOUND", "Selected guide service not found.", 404)
+
+        service = service_doc.to_dict() or {}
+        if service.get("is_active") is False:
+            return error_response("INACTIVE_SERVICE", "Selected guide service is not active.", 400)
+
+        max_group_size = _to_int(service.get("max_group_size"), 0)
+        if max_group_size > 0 and participants > max_group_size:
+            return error_response(
+                "INVALID_PARTICIPANTS",
+                f"Maximum allowed participants for this service is {max_group_size}.",
+                400,
+            )
+
+        scheduled_time = data.get("scheduled_time")
+        if not scheduled_time:
+            return error_response("MISSING_FIELDS", "scheduled_time is required for GUIDE_SERVICE activity.", 400)
+        if _parse_datetime_value(scheduled_time) is None:
+            return error_response("INVALID_DATETIME", "scheduled_time must be a valid ISO datetime.", 400)
+
+        price = _to_float(service.get("price"), 0.0)
+        price_unit = str(service.get("price_unit") or "PER_PERSON").strip().upper()
+        if price_unit == "PER_GROUP":
+            total_price = round(price, 2)
+        else:
+            total_price = round(price * participants, 2)
+
+        activity_data.update(
+            {
+                "tour_id": f"guide_service:{guide_owner_uid}:{guide_service_id}",
+                "tour_name": data.get("tour_name") or service.get("name") or "",
+                "guide_service_id": guide_service_id,
+                "guide_owner_uid": guide_owner_uid,
+                "time_slot_id": None,
+                "scheduled_time": scheduled_time,
+                "price_per_person": price if price_unit == "PER_PERSON" else None,
+                "price_per_group": price if price_unit == "PER_GROUP" else None,
+                "total_price": total_price,
+                "price_unit": price_unit,
+                "currency": "INR",
+                "location": service.get("location") or service.get("business_city") or "",
+                "provider_uid": guide_owner_uid,
+                "provider_name": service.get("owner_display_name") or service.get("business_name") or "",
+                "service_type": service.get("service_type") or "GUIDED_TOUR",
+            }
+        )
+
+    activity_ref = db.collection("itineraries").document(itinerary_id).collection("activities").document()
+    activity_data["id"] = activity_ref.id
+
+    batch = db.batch()
+    batch.set(activity_ref, activity_data)
+    if slot_ref_for_update is not None and slot_next_booked_count is not None:
+        batch.set(
+            slot_ref_for_update,
+            {
+                "booked_count": slot_next_booked_count,
+                "updated_at": now_iso,
+            },
+            merge=True,
+        )
+
+    try:
+        batch.commit()
+    except Exception as e:
+        return error_response("ACTIVITY_BOOKING_FAILED", f"Failed to create activity booking: {e}", 500)
 
     db.collection("activity_log").add(
         {
@@ -446,3 +603,35 @@ def create_activity():
     )
 
     return success_response(activity_data, 201, "Activity booked.")
+
+
+@bookings_bp.route("/activities/me", methods=["GET"])
+@require_auth
+@require_role("TRAVELER", "PLATFORM_ADMIN")
+def get_my_activities():
+    """Return the logged-in traveler's activity bookings across all itineraries."""
+    db = get_firestore_client()
+    uid = g.current_user["uid"]
+
+    activities = []
+    itineraries = db.collection("itineraries").where("traveler_uid", "==", uid).stream()
+    for itinerary_doc in itineraries:
+        itinerary_id = itinerary_doc.id
+        itinerary = itinerary_doc.to_dict() or {}
+        for activity_doc in db.collection("itineraries").document(itinerary_id).collection("activities").stream():
+            activity = activity_doc.to_dict() or {}
+            activity["id"] = activity_doc.id
+            activity["itinerary_id"] = itinerary_id
+            activity["destination"] = itinerary.get("destination")
+            activity["itinerary_start_date"] = itinerary.get("start_date")
+            activity["itinerary_end_date"] = itinerary.get("end_date")
+            activities.append(activity)
+
+    activities.sort(
+        key=lambda item: (
+            item.get("scheduled_time") or "",
+            item.get("created_at") or "",
+        ),
+        reverse=True,
+    )
+    return success_response(activities)
