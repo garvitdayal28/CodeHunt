@@ -8,11 +8,16 @@ from flask import Blueprint, g, request
 
 from app.services.cloudinary_service import upload_image
 from app.services.firebase_service import get_firestore_client
+from app.services.redis_service import cache_delete_prefix
 from app.utils.auth import require_auth, require_role
 from app.utils.business_profile import BUSINESS_ROLE, validate_and_normalize_business_profile
 from app.utils.responses import error_response, success_response
 
 business_bp = Blueprint("business", __name__, url_prefix="/api/business")
+
+GUIDE_SERVICE_TYPES = {"ACTIVITY", "GUIDED_TOUR"}
+GUIDE_PRICE_UNITS = {"PER_PERSON", "PER_GROUP"}
+GUIDE_DIFFICULTY_LEVELS = {"EASY", "MODERATE", "HARD"}
 
 
 def _require_hotel_business_user(db, uid):
@@ -41,6 +46,19 @@ def _require_restaurant_business_user(db, uid):
     return user_data
 
 
+def _require_guide_business_user(db, uid):
+    user_doc = db.collection("users").document(uid).get()
+    if not user_doc.exists:
+        return None
+    user_data = user_doc.to_dict() or {}
+    if user_data.get("role") != BUSINESS_ROLE:
+        return None
+    business_profile = user_data.get("business_profile") or {}
+    if business_profile.get("business_type") != "TOURIST_GUIDE_SERVICE":
+        return None
+    return user_data
+
+
 def _to_string_list(value):
     if isinstance(value, str):
         return [item.strip() for item in value.split(",") if item.strip()]
@@ -61,6 +79,140 @@ def _parse_date(value):
 def _extract_itinerary_id(doc):
     parent = doc.reference.parent.parent
     return parent.id if parent else None
+
+
+def _to_bool(value, field_name, default=True):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "y", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "n", "off"}:
+            return False
+    raise ValueError(f"{field_name} must be a boolean.")
+
+
+def _parse_positive_float(value, field_name):
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field_name} must be a positive number.")
+    if parsed <= 0:
+        raise ValueError(f"{field_name} must be a positive number.")
+    return parsed
+
+
+def _parse_non_negative_float(value, field_name):
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field_name} must be a non-negative number.")
+    if parsed < 0:
+        raise ValueError(f"{field_name} must be a non-negative number.")
+    return parsed
+
+
+def _parse_optional_positive_int(value, field_name):
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field_name} must be a positive integer.")
+    if parsed <= 0:
+        raise ValueError(f"{field_name} must be a positive integer.")
+    return parsed
+
+
+def _parse_optional_non_negative_int(value, field_name):
+    if value is None or str(value).strip() == "":
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field_name} must be a non-negative integer.")
+    if parsed < 0:
+        raise ValueError(f"{field_name} must be a non-negative integer.")
+    return parsed
+
+
+def _normalize_guide_service_payload(data):
+    if not isinstance(data, dict):
+        raise ValueError("Request body must be a JSON object.")
+
+    service_type = str(data.get("service_type") or "").strip().upper()
+    if service_type not in GUIDE_SERVICE_TYPES:
+        raise ValueError("service_type must be ACTIVITY or GUIDED_TOUR.")
+
+    name = str(data.get("name") or "").strip()
+    if not name:
+        raise ValueError("name is required.")
+
+    location = str(data.get("location") or "").strip()
+    if not location:
+        raise ValueError("location is required.")
+
+    duration_hours = _parse_positive_float(data.get("duration_hours"), "duration_hours")
+    price = _parse_non_negative_float(data.get("price"), "price")
+
+    price_unit = str(data.get("price_unit") or "PER_PERSON").strip().upper()
+    if price_unit not in GUIDE_PRICE_UNITS:
+        raise ValueError("price_unit must be PER_PERSON or PER_GROUP.")
+
+    max_group_size = _parse_optional_positive_int(data.get("max_group_size"), "max_group_size")
+    category = _to_string_list(data.get("category"))
+    highlights = _to_string_list(data.get("highlights"))
+    inclusions = _to_string_list(data.get("inclusions"))
+
+    images = data.get("images")
+    if images is None:
+        image_urls = []
+    elif isinstance(images, list):
+        image_urls = [str(url).strip() for url in images if str(url).strip()]
+    else:
+        raise ValueError("images must be a list of URLs.")
+
+    payload = {
+        "service_type": service_type,
+        "name": name,
+        "description": str(data.get("description") or "").strip(),
+        "location": location,
+        "duration_hours": duration_hours,
+        "price": price,
+        "price_unit": price_unit,
+        "max_group_size": max_group_size,
+        "category": category,
+        "highlights": highlights,
+        "inclusions": inclusions,
+        "images": image_urls,
+        "cover_image": image_urls[0] if image_urls else None,
+        "is_active": _to_bool(data.get("is_active"), "is_active", default=True),
+    }
+
+    if service_type == "ACTIVITY":
+        difficulty_level = str(data.get("difficulty_level") or "EASY").strip().upper()
+        if difficulty_level not in GUIDE_DIFFICULTY_LEVELS:
+            raise ValueError("difficulty_level must be EASY, MODERATE, or HARD.")
+        payload["difficulty_level"] = difficulty_level
+        payload["min_age"] = _parse_optional_non_negative_int(data.get("min_age"), "min_age")
+        payload["meeting_point"] = ""
+        payload["languages"] = []
+    else:
+        payload["meeting_point"] = str(data.get("meeting_point") or "").strip()
+        payload["languages"] = _to_string_list(data.get("languages"))
+        payload["difficulty_level"] = None
+        payload["min_age"] = None
+
+    return payload
+
+
+def _invalidate_tours_cache():
+    cache_delete_prefix("tours:")
 
 
 def _normalize_room_payload(data, partial=False):
@@ -670,3 +822,161 @@ def delete_restaurant_menu_item(item_id):
 
     item_ref.delete()
     return success_response({"id": item_id}, 200, "Menu item deleted successfully.")
+
+
+@business_bp.route("/guide/upload-image", methods=["POST"])
+@require_auth
+@require_role(BUSINESS_ROLE)
+def upload_guide_service_image():
+    """Upload an image for TOURIST_GUIDE_SERVICE business accounts."""
+    db = get_firestore_client()
+    uid = g.current_user["uid"]
+    user_data = _require_guide_business_user(db, uid)
+    if not user_data:
+        return error_response("INVALID_ROLE", "Only TOURIST_GUIDE_SERVICE accounts can upload guide images.", 403)
+
+    file_obj = request.files.get("file")
+    if not file_obj:
+        return error_response("MISSING_FILE", "file is required as multipart form-data.", 400)
+
+    folder = request.form.get("folder") or f"tripallied/business/{uid}/guide-services"
+    try:
+        uploaded = upload_image(file_obj, folder=folder)
+    except ValueError as e:
+        return error_response("UPLOAD_CONFIG_ERROR", str(e), 400)
+    except RuntimeError as e:
+        return error_response("UPLOAD_FAILED", str(e), 502)
+    except Exception as e:
+        return error_response("UPLOAD_FAILED", f"Unexpected upload error: {e}", 500)
+
+    return success_response(uploaded, 200, "Image uploaded successfully.")
+
+
+@business_bp.route("/guide/services", methods=["GET"])
+@require_auth
+@require_role(BUSINESS_ROLE)
+def get_guide_services():
+    """List guide services for a TOURIST_GUIDE_SERVICE business account."""
+    db = get_firestore_client()
+    uid = g.current_user["uid"]
+    user_data = _require_guide_business_user(db, uid)
+    if not user_data:
+        return error_response("INVALID_ROLE", "Only TOURIST_GUIDE_SERVICE accounts can manage services.", 403)
+
+    items = []
+    for doc in db.collection("users").document(uid).collection("guide_services").stream():
+        item = doc.to_dict() or {}
+        item["id"] = item.get("id") or doc.id
+        items.append(item)
+
+    items.sort(key=lambda item: item.get("created_at", ""), reverse=True)
+    return success_response(items)
+
+
+@business_bp.route("/guide/services", methods=["POST"])
+@require_auth
+@require_role(BUSINESS_ROLE)
+def create_guide_service():
+    """Create a guide service package for a TOURIST_GUIDE_SERVICE business account."""
+    data = request.get_json()
+    if not data or not isinstance(data, dict):
+        return error_response("INVALID_BODY", "Request body must be a JSON object.", 400)
+
+    try:
+        payload = _normalize_guide_service_payload(data)
+    except ValueError as e:
+        return error_response("INVALID_SERVICE_DATA", str(e), 400)
+
+    db = get_firestore_client()
+    uid = g.current_user["uid"]
+    user_data = _require_guide_business_user(db, uid)
+    if not user_data:
+        return error_response("INVALID_ROLE", "Only TOURIST_GUIDE_SERVICE accounts can manage services.", 403)
+
+    business_profile = user_data.get("business_profile") or {}
+    now_iso = datetime.utcnow().isoformat()
+    service_ref = db.collection("users").document(uid).collection("guide_services").document()
+
+    payload.update(
+        {
+            "id": service_ref.id,
+            "owner_uid": uid,
+            "owner_display_name": user_data.get("display_name") or "",
+            "business_name": business_profile.get("business_name") or user_data.get("display_name") or "",
+            "business_city": business_profile.get("city") or "",
+            "source": "GUIDE_SERVICE",
+            "created_at": now_iso,
+            "updated_at": now_iso,
+        }
+    )
+
+    service_ref.set(payload)
+    _invalidate_tours_cache()
+    return success_response(payload, 201, "Guide service created successfully.")
+
+
+@business_bp.route("/guide/services/<service_id>", methods=["PUT"])
+@require_auth
+@require_role(BUSINESS_ROLE)
+def update_guide_service(service_id):
+    """Update a guide service package for a TOURIST_GUIDE_SERVICE business account."""
+    data = request.get_json()
+    if not data or not isinstance(data, dict):
+        return error_response("INVALID_BODY", "Request body must be a JSON object.", 400)
+
+    db = get_firestore_client()
+    uid = g.current_user["uid"]
+    user_data = _require_guide_business_user(db, uid)
+    if not user_data:
+        return error_response("INVALID_ROLE", "Only TOURIST_GUIDE_SERVICE accounts can manage services.", 403)
+
+    service_ref = db.collection("users").document(uid).collection("guide_services").document(service_id)
+    service_doc = service_ref.get()
+    if not service_doc.exists:
+        return error_response("NOT_FOUND", "Guide service not found.", 404)
+
+    existing = service_doc.to_dict() or {}
+    merged = {**existing, **data}
+    try:
+        payload = _normalize_guide_service_payload(merged)
+    except ValueError as e:
+        return error_response("INVALID_SERVICE_DATA", str(e), 400)
+
+    business_profile = user_data.get("business_profile") or {}
+    payload.update(
+        {
+            "id": service_id,
+            "owner_uid": uid,
+            "owner_display_name": user_data.get("display_name") or "",
+            "business_name": business_profile.get("business_name") or user_data.get("display_name") or "",
+            "business_city": business_profile.get("city") or "",
+            "source": "GUIDE_SERVICE",
+            "created_at": existing.get("created_at") or datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+    )
+
+    service_ref.set(payload)
+    _invalidate_tours_cache()
+    return success_response(payload, 200, "Guide service updated successfully.")
+
+
+@business_bp.route("/guide/services/<service_id>", methods=["DELETE"])
+@require_auth
+@require_role(BUSINESS_ROLE)
+def delete_guide_service(service_id):
+    """Delete a guide service package for a TOURIST_GUIDE_SERVICE business account."""
+    db = get_firestore_client()
+    uid = g.current_user["uid"]
+    user_data = _require_guide_business_user(db, uid)
+    if not user_data:
+        return error_response("INVALID_ROLE", "Only TOURIST_GUIDE_SERVICE accounts can manage services.", 403)
+
+    service_ref = db.collection("users").document(uid).collection("guide_services").document(service_id)
+    service_doc = service_ref.get()
+    if not service_doc.exists:
+        return error_response("NOT_FOUND", "Guide service not found.", 404)
+
+    service_ref.delete()
+    _invalidate_tours_cache()
+    return success_response({"id": service_id}, 200, "Guide service deleted successfully.")

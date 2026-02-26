@@ -7,7 +7,7 @@ Authentication decorators for Flask routes.
 
 from functools import wraps
 from flask import request, g
-from app.services.firebase_service import verify_firebase_token
+from app.services.firebase_service import get_firestore_client, verify_firebase_token
 from app.utils.responses import error_response
 
 
@@ -67,6 +67,20 @@ def require_role(*allowed_roles):
 
             user_role = current_user.get("role", "")
             if user_role not in allowed_roles:
+                uid = current_user.get("uid")
+                if uid:
+                    try:
+                        db = get_firestore_client()
+                        user_doc = db.collection("users").document(uid).get()
+                        if user_doc.exists:
+                            persisted_role = str((user_doc.to_dict() or {}).get("role") or "").strip()
+                            if persisted_role in allowed_roles:
+                                current_user["role"] = persisted_role
+                                g.current_user = current_user
+                                return f(*args, **kwargs)
+                    except Exception:
+                        pass
+
                 return error_response(
                     "FORBIDDEN",
                     f"This action requires one of the following roles: {', '.join(allowed_roles)}.",

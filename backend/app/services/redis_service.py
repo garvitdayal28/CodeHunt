@@ -84,6 +84,30 @@ def cache_delete(key):
     _mem_cache.pop(key, None)
 
 
+def cache_delete_prefix(prefix):
+    """Delete all cached keys matching a prefix."""
+    if not prefix:
+        return
+
+    client = get_redis_client()
+    if client is not None:
+        try:
+            cursor = 0
+            pattern = f"{prefix}*"
+            while True:
+                cursor, keys = client.scan(cursor=cursor, match=pattern, count=200)
+                if keys:
+                    client.delete(*keys)
+                if cursor == 0:
+                    break
+        except Exception:
+            pass
+
+    for key in list(_mem_cache.keys()):
+        if key.startswith(prefix):
+            _mem_cache.pop(key, None)
+
+
 # ──────────────────────────────────────────────
 # Pub/Sub helpers (for Disruption Engine → SSE)
 # ──────────────────────────────────────────────

@@ -68,6 +68,14 @@ def _normalize_text(value):
     return str(value or "").strip().lower()
 
 
+def _to_string_list(value):
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str):
+        return [item.strip() for item in value.split(",") if item.strip()]
+    return []
+
+
 def _extract_itinerary_id(booking_doc):
     parent = booking_doc.reference.parent.parent
     return parent.id if parent else None
@@ -199,6 +207,50 @@ def _sort_rooms(rooms, sort_by):
     if sort_by == "name_asc":
         return sorted(rooms, key=lambda room: _normalize_text(room.get("name")))
     return sorted(rooms, key=lambda room: _to_float(room.get("price_per_day")))
+
+
+def _guide_service_matches_destination(service, destination):
+    if not destination:
+        return True
+    normalized_destination = _normalize_text(destination)
+    haystack = " ".join(
+        [
+            _normalize_text(service.get("location")),
+            _normalize_text(service.get("business_city")),
+        ]
+    )
+    return normalized_destination in haystack
+
+
+def _guide_service_matches_category(service, category):
+    if not category:
+        return True
+    normalized_category = _normalize_text(category)
+    return any(_normalize_text(item) == normalized_category for item in _to_string_list(service.get("category")))
+
+
+def _map_guide_service_to_tour(service):
+    service_id = str(service.get("id") or "")
+    owner_uid = str(service.get("owner_uid") or "")
+    composite_id = service_id
+    if owner_uid and service_id:
+        composite_id = f"guide_service:{owner_uid}:{service_id}"
+
+    return {
+        "id": composite_id or service_id or owner_uid or "guide_service",
+        "name": service.get("name") or "Guide Service",
+        "description": service.get("description") or "",
+        "location": service.get("location") or service.get("business_city") or "",
+        "duration_hours": _to_float(service.get("duration_hours"), 0.0),
+        "price": _to_float(service.get("price"), 0.0),
+        "category": _to_string_list(service.get("category")),
+        "image_url": service.get("cover_image") or ((_to_string_list(service.get("images")) or [None])[0]),
+        "image_urls": _to_string_list(service.get("images")),
+        "source": "GUIDE_SERVICE",
+        "service_type": service.get("service_type"),
+        "owner_name": service.get("owner_display_name") or service.get("business_name") or "",
+        "created_at": service.get("created_at"),
+    }
 
 
 @search_bp.route("/hotels", methods=["GET"])
@@ -426,7 +478,7 @@ def get_hotel_rooms(hotel_uid):
 
 @search_bp.route("/tours", methods=["GET"])
 def search_tours():
-    """Search tours with filters. Results served from Redis cache when available."""
+    """Search tours and guide services with filters. Results served from Redis cache when available."""
     destination = request.args.get("destination", "")
     category = request.args.get("category", "")
     date = request.args.get("date", "")
@@ -438,21 +490,37 @@ def search_tours():
 
     try:
         db = get_firestore_client()
-        query = db.collection("tours")
-
+        tours_query = db.collection("tours")
         if destination:
-            query = query.where("location", "==", destination)
+            tours_query = tours_query.where("location", "==", destination)
         if category:
-            query = query.where("category", "array_contains", category)
+            tours_query = tours_query.where("category", "array_contains", category)
 
         tours = []
-        for doc in query.stream():
-            tour = doc.to_dict()
+        for doc in tours_query.stream():
+            tour = doc.to_dict() or {}
             tour["id"] = doc.id
+            if "source" not in tour:
+                tour["source"] = "TOUR"
+            if "service_type" not in tour:
+                tour["service_type"] = None
+            if "owner_name" not in tour:
+                tour["owner_name"] = ""
             tours.append(tour)
 
-        cache_set(cache_key, tours, ttl=300)
-        return success_response(tours)
+        guide_services = []
+        guide_query = db.collection_group("guide_services").where("is_active", "==", True)
+        for doc in guide_query.stream():
+            service = doc.to_dict() or {}
+            if not _guide_service_matches_destination(service, destination):
+                continue
+            if not _guide_service_matches_category(service, category):
+                continue
+            guide_services.append(_map_guide_service_to_tour(service))
+
+        results = tours + guide_services
+        cache_set(cache_key, results, ttl=300)
+        return success_response(results)
     except Exception as e:
         logger.warning(f"Tour search failed: {e}")
         return success_response([])

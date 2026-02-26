@@ -37,7 +37,10 @@ export function AuthProvider({ children }) {
     if (!targetUser) return null;
 
     try {
-      const res = await api.get('/auth/me');
+      const token = await targetUser.getIdToken();
+      const res = await api.get('/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const profile = res?.data?.data || null;
       applyProfile(profile);
       return profile;

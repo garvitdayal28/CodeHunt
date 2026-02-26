@@ -36,6 +36,7 @@ const roleNavigation = {
     { name: 'Dashboard', href: '/business/dashboard', icon: LayoutDashboard },
     { name: 'Room Management', href: '/business/rooms', icon: Building2, hotelOnly: true },
     { name: 'Menu', href: '/business/menu', icon: UtensilsCrossed, restaurantOnly: true },
+    { name: 'Manage Services', href: '/business/services', icon: MapPin, guideOnly: true },
     { name: 'Rides', href: '/business/rides', icon: Car, cabOnly: true },
     { name: 'Ratings', href: '/business/ratings', icon: Star, cabOnly: true },
   ],
@@ -65,6 +66,7 @@ export default function AppLayout() {
     if (item.cabOnly) return userRole === 'BUSINESS' && businessType === 'CAB_DRIVER';
     if (item.hotelOnly) return userRole === 'BUSINESS' && businessType === 'HOTEL';
     if (item.restaurantOnly) return userRole === 'BUSINESS' && businessType === 'RESTAURANT';
+    if (item.guideOnly) return userRole === 'BUSINESS' && businessType === 'TOURIST_GUIDE_SERVICE';
     return true;
   });
   const [userMenuOpen, setUserMenuOpen] = useState(false);
