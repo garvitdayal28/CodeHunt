@@ -33,11 +33,29 @@ api.interceptors.response.use(
   (response) => {
     return response;
   },
-  (error) => {
-    // You can handle global errors here, e.g., redirect to login on 401
-    if (error.response && error.response.status === 401) {
+  async (error) => {
+    const originalRequest = error.config;
+    const is401 = error.response && error.response.status === 401;
+    const backendCode = error.response?.data?.error;
+
+    // Retry once with a force-refreshed Firebase ID token.
+    if (is401 && backendCode === 'INVALID_TOKEN' && !originalRequest?._retry) {
+      originalRequest._retry = true;
+      const user = auth.currentUser;
+      if (user) {
+        try {
+          const freshToken = await user.getIdToken(true);
+          originalRequest.headers = originalRequest.headers || {};
+          originalRequest.headers.Authorization = `Bearer ${freshToken}`;
+          return api(originalRequest);
+        } catch (refreshErr) {
+          console.warn('Token refresh failed:', refreshErr);
+        }
+      }
+    }
+
+    if (is401) {
       console.warn("Unauthorized request. Token might be invalid or expired.");
-      // Optional: Handle logout/redirect logic
     }
     return Promise.reject(error);
   }

@@ -24,7 +24,10 @@ def require_auth(f):
         if not auth_header.startswith("Bearer "):
             return error_response("MISSING_TOKEN", "Authorization header must be 'Bearer <token>'.", 401)
 
-        token = auth_header.split("Bearer ")[1]
+        token = auth_header.split(" ", 1)[1].strip()
+        if not token:
+            return error_response("MISSING_TOKEN", "Authorization token is required.", 401)
+
         decoded = verify_firebase_token(token)
 
         if decoded is None:

@@ -1,49 +1,57 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
+
+import ProtectedRoute from './components/auth/ProtectedRoute';
+import AppLayout from './components/layout/AppLayout';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+
+import AuditLog from './pages/admin/AuditLog';
+import PlatformDashboard from './pages/admin/Dashboard';
+import PlatformDisruptions from './pages/admin/Disruptions';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
-import AppLayout from './components/layout/AppLayout';
-import ProtectedRoute from './components/auth/ProtectedRoute';
-
-// Platform Admin Pages
-import PlatformDashboard from './pages/admin/Dashboard';
-import AuditLog from './pages/admin/AuditLog';
-import PlatformDisruptions from './pages/admin/Disruptions';
-
-// Traveler Pages
-import TravelerDashboard from './pages/traveler/Dashboard';
-import MyTrips from './pages/traveler/MyTrips';
-import CreateItinerary from './pages/traveler/CreateItinerary';
-import HotelSearch from './pages/traveler/HotelSearch';
-import TourSearch from './pages/traveler/TourSearch';
-import ItineraryDetail from './pages/traveler/ItineraryDetail';
-import HotelDetail from './pages/traveler/HotelDetail';
+import BusinessDashboard from './pages/business/Dashboard';
+import BusinessRides from './pages/business/Rides';
+import HotelDashboard from './pages/hotel/Dashboard';
 import BookingConfirmation from './pages/traveler/BookingConfirmation';
-
+import CabRides from './pages/traveler/CabRides';
+import CreateItinerary from './pages/traveler/CreateItinerary';
+import TravelerDashboard from './pages/traveler/Dashboard';
+import HotelDetail from './pages/traveler/HotelDetail';
+import HotelSearch from './pages/traveler/HotelSearch';
+import ItineraryDetail from './pages/traveler/ItineraryDetail';
+import MyTrips from './pages/traveler/MyTrips';
+import TravelerProfile from './pages/traveler/Profile';
+import TourSearch from './pages/traveler/TourSearch';
 import AITripPlanner from './pages/traveler/AITripPlanner';
 
-// Placeholder dashboards for other roles
-const HotelDashboard = () => <div className="p-6"><h1 className="text-display-md">Hotel Admin Dashboard</h1><p className="text-text-secondary mt-1">Property management overview.</p></div>;
-const OperatorDashboard = () => <div className="p-6"><h1 className="text-display-md">Tour Operator Dashboard</h1><p className="text-text-secondary mt-1">Tour and activity management.</p></div>;
+const OperatorDashboard = () => (
+  <div className="p-6">
+    <h1 className="text-display-md">Tour Operator Dashboard</h1>
+    <p className="text-text-secondary mt-1">Tour and activity management.</p>
+  </div>
+);
 
-// Redirects to the correct dashboard based on user role
 function getRoleDashboard(role) {
   switch (role) {
-    case 'HOTEL_ADMIN':     return '/hotel/dashboard';
-    case 'TOUR_OPERATOR':   return '/operator/dashboard';
-    case 'PLATFORM_ADMIN':  return '/admin/dashboard';
-    default:                return '/traveler/dashboard';
+    case 'BUSINESS':
+      return '/business/dashboard';
+    case 'HOTEL_ADMIN':
+      return '/hotel/dashboard';
+    case 'TOUR_OPERATOR':
+      return '/operator/dashboard';
+    case 'PLATFORM_ADMIN':
+      return '/admin/dashboard';
+    default:
+      return '/traveler/dashboard';
   }
 }
 
-// Redirect / to the correct dashboard or login
 function AuthRedirect() {
   const { currentUser, userRole } = useAuth();
   if (currentUser) return <Navigate to={getRoleDashboard(userRole)} replace />;
   return <Navigate to="/login" replace />;
 }
 
-// Redirect logged-in users away from login/register pages
 function PublicOnlyRoute({ children }) {
   const { currentUser, userRole } = useAuth();
   if (currentUser) return <Navigate to={getRoleDashboard(userRole)} replace />;
@@ -55,17 +63,11 @@ function App() {
     <AuthProvider>
       <Router>
         <Routes>
-          {/* Public routes */}
           <Route path="/login" element={<PublicOnlyRoute><Login /></PublicOnlyRoute>} />
           <Route path="/register" element={<PublicOnlyRoute><Register /></PublicOnlyRoute>} />
-          
-          {/* Index route redirects based on role */}
           <Route path="/" element={<AuthRedirect />} />
 
-          {/* Protected routes wrapped in the AppLayout shell */}
           <Route element={<AppLayout />}>
-            
-            {/* Traveler Routes */}
             <Route element={<ProtectedRoute allowedRoles={['TRAVELER']} />}>
               <Route path="/traveler/dashboard" element={<TravelerDashboard />} />
               <Route path="/traveler/itineraries" element={<MyTrips />} />
@@ -77,28 +79,30 @@ function App() {
               <Route path="/traveler/booking/confirm" element={<BookingConfirmation />} />
               <Route path="/traveler/search/tours" element={<TourSearch />} />
               <Route path="/traveler/ai-planner" element={<AITripPlanner />} />
+              <Route path="/traveler/cabs" element={<CabRides />} />
+              <Route path="/traveler/profile" element={<TravelerProfile />} />
             </Route>
 
-            {/* Hotel Admin Routes */}
+            <Route element={<ProtectedRoute allowedRoles={['BUSINESS']} />}>
+              <Route path="/business/dashboard" element={<BusinessDashboard />} />
+              <Route path="/business/rides" element={<BusinessRides />} />
+            </Route>
+
             <Route element={<ProtectedRoute allowedRoles={['HOTEL_ADMIN', 'PLATFORM_ADMIN']} />}>
               <Route path="/hotel/dashboard" element={<HotelDashboard />} />
             </Route>
 
-            {/* Tour Operator Routes */}
             <Route element={<ProtectedRoute allowedRoles={['TOUR_OPERATOR', 'PLATFORM_ADMIN']} />}>
               <Route path="/operator/dashboard" element={<OperatorDashboard />} />
             </Route>
 
-            {/* Platform Admin Routes */}
             <Route element={<ProtectedRoute allowedRoles={['PLATFORM_ADMIN']} />}>
               <Route path="/admin/dashboard" element={<PlatformDashboard />} />
               <Route path="/admin/audit" element={<AuditLog />} />
               <Route path="/admin/disruptions" element={<PlatformDisruptions />} />
             </Route>
-
           </Route>
-          
-          {/* Fallback */}
+
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>

@@ -1,13 +1,14 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import {
+  createUserWithEmailAndPassword,
   onAuthStateChanged,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
   signOut,
   updateProfile,
 } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+
 import api from '../api/axios';
+import { auth } from '../lib/firebase';
 
 const AuthContext = createContext();
 
@@ -18,34 +19,70 @@ export function useAuth() {
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
+  const [businessType, setBusinessType] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Register using Firebase client SDK directly, then sync with backend
-  const register = async (email, password, displayName, role) => {
-    // 1. Create user client-side via Firebase Auth
+  const applyProfile = useCallback((profile) => {
+    setUserProfile(profile || null);
+    setBusinessType(profile?.business_profile?.business_type || null);
+    if (profile?.role) {
+      setUserRole(profile.role);
+      localStorage.setItem('user_role', profile.role);
+    }
+  }, []);
+
+  const refreshUserProfile = useCallback(async (user = null) => {
+    const targetUser = user || auth.currentUser;
+    if (!targetUser) return null;
+
+    try {
+      const res = await api.get('/auth/me');
+      const profile = res?.data?.data || null;
+      applyProfile(profile);
+      return profile;
+    } catch {
+      setUserProfile(null);
+      setBusinessType(null);
+      return null;
+    }
+  }, [applyProfile]);
+
+  // Register using Firebase Auth first, then persist role/profile in backend.
+  const register = async (email, password, displayName, role, businessProfile = null) => {
     const cred = await createUserWithEmailAndPassword(auth, email, password);
-
-    // 2. Set display name
     await updateProfile(cred.user, { displayName });
+    localStorage.setItem('user_role', role);
 
-    // 3. Try to sync with backend (sets custom claims + Firestore doc)
-    //    This is optional — if backend is down, user still gets created
     try {
       await api.post('/auth/register', {
+        uid: cred.user.uid,
         email,
         password,
         display_name: displayName,
         role,
+        business_profile: businessProfile,
       });
-      // Force token refresh to pick up custom claims set by backend
-      await cred.user.getIdToken(true);
-    } catch (err) {
-      console.warn('Backend sync failed (user still created in Firebase):', err.message);
-      // Store role in localStorage as fallback when backend is unavailable
-      localStorage.setItem('user_role', role);
-    }
 
-    return cred.user;
+      setCurrentUser(cred.user);
+      setUserRole(role);
+      setBusinessType(role === 'BUSINESS' ? businessProfile?.business_type || null : null);
+      await cred.user.getIdToken(true);
+      await refreshUserProfile(cred.user);
+      return cred.user;
+    } catch (err) {
+      // Keep auth + profile creation consistent by rolling back on sync failure.
+      localStorage.removeItem('user_role');
+      setUserRole(null);
+      setUserProfile(null);
+      setBusinessType(null);
+      try {
+        await cred.user.delete();
+      } catch (cleanupErr) {
+        console.warn('Failed to roll back Firebase user after register sync failure:', cleanupErr.message);
+      }
+      throw err;
+    }
   };
 
   const login = async (email, password) => {
@@ -55,38 +92,45 @@ export function AuthProvider({ children }) {
 
   const logout = async () => {
     localStorage.removeItem('user_role');
+    setUserProfile(null);
+    setBusinessType(null);
     return signOut(auth);
   };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        setCurrentUser(user);
         try {
           const tokenResult = await user.getIdTokenResult(true);
           const claimRole = tokenResult.claims.role;
-          // Use claim role if available, otherwise fall back to localStorage
           setUserRole(claimRole || localStorage.getItem('user_role') || 'TRAVELER');
         } catch {
           setUserRole(localStorage.getItem('user_role') || 'TRAVELER');
         }
-        setCurrentUser(user);
+        await refreshUserProfile(user);
       } else {
         setCurrentUser(null);
         setUserRole(null);
+        setUserProfile(null);
+        setBusinessType(null);
       }
       setLoading(false);
     });
 
     return unsubscribe;
-  }, []);
+  }, [refreshUserProfile]);
 
   const value = {
     currentUser,
     userRole,
+    userProfile,
+    businessType,
     loading,
     login,
     register,
     logout,
+    refreshUserProfile,
   };
 
   return (

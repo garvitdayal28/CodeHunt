@@ -11,6 +11,22 @@ from datetime import datetime
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/api/admin/hotel")
 
+EDITABLE_PROPERTY_FIELDS = {
+    "name",
+    "location",
+    "address",
+    "description",
+    "price_per_night",
+    "rating",
+    "total_rooms",
+    "amenities",
+}
+
+
+def _get_admin_property(db, uid):
+    props = db.collection("properties").where("admin_uid", "==", uid).limit(1).stream()
+    return next(props, None)
+
 
 @admin_bp.route("/bookings", methods=["GET"])
 @require_auth
@@ -21,8 +37,7 @@ def get_hotel_bookings():
     uid = g.current_user["uid"]
 
     # Get the admin's property
-    props = db.collection("properties").where("admin_uid", "==", uid).limit(1).stream()
-    property_doc = next(props, None)
+    property_doc = _get_admin_property(db, uid)
     if not property_doc:
         return error_response("NO_PROPERTY", "No property linked to this admin.", 404)
 
@@ -54,8 +69,7 @@ def get_occupancy():
     db = get_firestore_client()
     uid = g.current_user["uid"]
 
-    props = db.collection("properties").where("admin_uid", "==", uid).limit(1).stream()
-    property_doc = next(props, None)
+    property_doc = _get_admin_property(db, uid)
     if not property_doc:
         return error_response("NO_PROPERTY", "No property linked to this admin.", 404)
 
@@ -89,6 +103,78 @@ def get_occupancy():
         }
 
     return success_response(occupancy)
+
+
+@admin_bp.route("/profile", methods=["GET"])
+@require_auth
+@require_role("HOTEL_ADMIN", "PLATFORM_ADMIN")
+def get_hotel_profile():
+    """Get property profile for the logged-in hotel admin."""
+    db = get_firestore_client()
+    uid = g.current_user["uid"]
+
+    property_doc = _get_admin_property(db, uid)
+    if not property_doc:
+        return error_response("NO_PROPERTY", "No property linked to this admin.", 404)
+
+    property_data = property_doc.to_dict()
+    property_data["id"] = property_doc.id
+    return success_response(property_data)
+
+
+@admin_bp.route("/profile", methods=["PUT"])
+@require_auth
+@require_role("HOTEL_ADMIN", "PLATFORM_ADMIN")
+def update_hotel_profile():
+    """Update editable property profile fields for the logged-in hotel admin."""
+    data = request.get_json()
+    if not data or not isinstance(data, dict):
+        return error_response("INVALID_BODY", "Request body must be JSON object.", 400)
+
+    db = get_firestore_client()
+    uid = g.current_user["uid"]
+    property_doc = _get_admin_property(db, uid)
+    if not property_doc:
+        return error_response("NO_PROPERTY", "No property linked to this admin.", 404)
+
+    update_payload = {}
+    for field in EDITABLE_PROPERTY_FIELDS:
+        if field not in data:
+            continue
+        value = data[field]
+        if field in {"price_per_night", "rating"}:
+            try:
+                value = float(value)
+            except (TypeError, ValueError):
+                return error_response("INVALID_FIELD", f"{field} must be a valid number.", 400)
+        elif field == "total_rooms":
+            try:
+                value = int(value)
+                if value < 1:
+                    raise ValueError
+            except (TypeError, ValueError):
+                return error_response("INVALID_FIELD", "total_rooms must be an integer greater than 0.", 400)
+        elif field == "amenities":
+            if isinstance(value, str):
+                value = [item.strip() for item in value.split(",") if item.strip()]
+            elif isinstance(value, list):
+                value = [str(item).strip() for item in value if str(item).strip()]
+            else:
+                return error_response("INVALID_FIELD", "amenities must be a list or comma-separated string.", 400)
+        elif value is not None:
+            value = str(value).strip()
+        update_payload[field] = value
+
+    if not update_payload:
+        return error_response("NO_FIELDS", "No editable fields provided.", 400)
+
+    update_payload["updated_at"] = datetime.utcnow().isoformat()
+    db.collection("properties").document(property_doc.id).set(update_payload, merge=True)
+
+    updated_doc = db.collection("properties").document(property_doc.id).get()
+    updated = updated_doc.to_dict()
+    updated["id"] = updated_doc.id
+    return success_response(updated, 200, "Hotel profile updated successfully.")
 
 
 @admin_bp.route("/alerts", methods=["GET"])

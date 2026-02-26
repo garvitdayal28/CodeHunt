@@ -46,6 +46,10 @@ def create_app(config_name=None):
     from app.services.redis_service import init_redis
     init_redis(app)
 
+    # Initialize Socket.IO (rides realtime)
+    from app.services.socket_service import init_socketio
+    init_socketio(app)
+
     # ──────────────────────────────────────────────
     # Register Blueprints
     # ──────────────────────────────────────────────
@@ -58,6 +62,8 @@ def create_app(config_name=None):
     from app.blueprints.events import events_bp
     from app.blueprints.search import search_bp
     from app.blueprints.ai import ai_bp
+    from app.blueprints.business import business_bp
+    from app.blueprints.rides import rides_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(bookings_bp)
@@ -68,6 +74,8 @@ def create_app(config_name=None):
     app.register_blueprint(events_bp)
     app.register_blueprint(search_bp)
     app.register_blueprint(ai_bp)
+    app.register_blueprint(business_bp)
+    app.register_blueprint(rides_bp)
 
     # ──────────────────────────────────────────────
     # Health Check
