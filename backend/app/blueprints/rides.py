@@ -240,6 +240,8 @@ def geocode_suggest():
     query = str(data.get("query") or "").strip()
     limit = data.get("limit", 5)
     city_hint = str(data.get("city_hint") or "").strip()
+    lat = data.get("lat")
+    lng = data.get("lng")
 
     if len(query) < 3:
         return success_response([])
@@ -256,7 +258,7 @@ def geocode_suggest():
                 or ""
             )
 
-    suggestions = suggest_addresses(query, city_hint=city_hint, limit=limit)
+    suggestions = suggest_addresses(query, city_hint=city_hint, limit=limit, lat=lat, lng=lng)
     return success_response(suggestions)
 
 
