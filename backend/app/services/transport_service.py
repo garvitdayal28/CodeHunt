@@ -1,178 +1,172 @@
-"""Flight and train search adapters with normalized transport output."""
+"""Transport suggestion service without paid provider dependencies."""
 
+import json
 import logging
-import os
+from urllib.parse import quote_plus
 
-import requests
-
+from app.services.ai_model import invoke_bedrock_stream, is_ai_configured
 from app.services.planner_schemas import normalize_transport_option
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_TIMEOUT = 12
+
+def _safe_json(value, fallback=None):
+    try:
+        return json.loads(value)
+    except Exception:
+        return fallback
 
 
-def _rapidapi_key():
-    return os.getenv("RAPIDAPI_KEY", "").strip()
+def _extract_json(text):
+    if not text:
+        return None
+    raw = str(text).strip()
+    direct = _safe_json(raw)
+    if isinstance(direct, dict):
+        return direct
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start == -1 or end == -1 or end <= start:
+        return None
+    return _safe_json(raw[start : end + 1])
 
 
-def _enabled():
-    return bool(_rapidapi_key())
+def _default_booking_url(mode, origin, destination, date):
+    query = quote_plus(f"{origin} to {destination} {date}".strip())
+    if mode == "FLIGHT":
+        return f"https://www.google.com/travel/flights?q={query}"
+    return f"https://www.google.com/search?q={query}+train+booking"
 
 
-def _request(host, path, params):
-    url = f"https://{host}{path}"
-    headers = {
-        "x-rapidapi-key": _rapidapi_key(),
-        "x-rapidapi-host": host,
-    }
-    response = requests.get(url, headers=headers, params=params, timeout=DEFAULT_TIMEOUT)
-    response.raise_for_status()
-    return response.json()
+def _normalize_rows(rows, mode, criteria):
+    origin = criteria.get("origin") or criteria.get("origin_city") or ""
+    destination = criteria.get("destination") or criteria.get("destination_city") or ""
+    date = criteria.get("date") or ""
 
-
-def _safe_get(data, keys, default=None):
-    current = data
-    for key in keys:
-        if not isinstance(current, dict):
-            return default
-        current = current.get(key)
-    return current if current is not None else default
-
-
-def _as_list(value):
-    if isinstance(value, list):
-        return value
-    if isinstance(value, dict):
-        for key in ("data", "results", "itineraries", "trips", "journeys"):
-            maybe = value.get(key)
-            if isinstance(maybe, list):
-                return maybe
-    return []
-
-
-def _normalize_flight_rows(rows):
-    results = []
-    for row in rows[:8]:
-        dep = _safe_get(row, ["departure"]) or _safe_get(row, ["origin"]) or _safe_get(row, ["from"])
-        arr = _safe_get(row, ["arrival"]) or _safe_get(row, ["destination"]) or _safe_get(row, ["to"])
-        carrier = _safe_get(row, ["carrier"]) or _safe_get(row, ["airline"]) or "RapidAPI"
-        duration = _safe_get(row, ["duration"]) or _safe_get(row, ["durationText"]) or ""
-        amount = _safe_get(row, ["price", "amount"]) or _safe_get(row, ["price"]) or _safe_get(row, ["amount"]) or 0
-        currency = _safe_get(row, ["price", "currency"]) or _safe_get(row, ["currency"]) or "INR"
-        booking_url = _safe_get(row, ["booking_url"]) or _safe_get(row, ["deeplink"]) or _safe_get(row, ["url"]) or ""
-        results.append(
+    normalized = []
+    for row in (rows or [])[:5]:
+        normalized.append(
             normalize_transport_option(
                 {
-                    "mode": "FLIGHT",
-                    "provider": str(carrier),
-                    "departure": str(dep or ""),
-                    "arrival": str(arr or ""),
-                    "duration": str(duration or ""),
-                    "price": amount,
-                    "currency": str(currency),
-                    "booking_url": str(booking_url or ""),
-                    "notes": "Live provider result",
-                    "is_live": True,
+                    "mode": mode,
+                    "provider": row.get("provider") or ("AI Estimated Airfare" if mode == "FLIGHT" else "AI Estimated Railfare"),
+                    "departure": row.get("departure") or origin,
+                    "arrival": row.get("arrival") or destination,
+                    "duration": row.get("duration") or "",
+                    "price": row.get("price") or 0,
+                    "currency": row.get("currency") or "INR",
+                    "booking_url": row.get("booking_url") or _default_booking_url(mode, origin, destination, date),
+                    "notes": row.get("notes") or "AI-generated estimate. Verify timings and fares before booking.",
+                    "is_live": False,
                 }
             )
         )
-    return results
+    return normalized
 
 
-def _normalize_train_rows(rows):
-    results = []
-    for row in rows[:8]:
-        dep = _safe_get(row, ["from"]) or _safe_get(row, ["departure"]) or _safe_get(row, ["source"])
-        arr = _safe_get(row, ["to"]) or _safe_get(row, ["arrival"]) or _safe_get(row, ["destination"])
-        provider = _safe_get(row, ["provider"]) or _safe_get(row, ["name"]) or "RapidAPI"
-        duration = _safe_get(row, ["duration"]) or _safe_get(row, ["travel_time"]) or ""
-        amount = _safe_get(row, ["fare"]) or _safe_get(row, ["price"]) or 0
-        booking_url = _safe_get(row, ["booking_url"]) or _safe_get(row, ["deeplink"]) or _safe_get(row, ["url"]) or ""
-        results.append(
-            normalize_transport_option(
-                {
-                    "mode": "TRAIN",
-                    "provider": str(provider),
-                    "departure": str(dep or ""),
-                    "arrival": str(arr or ""),
-                    "duration": str(duration or ""),
-                    "price": amount,
-                    "currency": "INR",
-                    "booking_url": str(booking_url or ""),
-                    "notes": "Live provider result",
-                    "is_live": True,
-                }
-            )
+def _heuristic_options(criteria, mode):
+    origin = criteria.get("origin") or criteria.get("origin_city") or "Origin"
+    destination = criteria.get("destination") or criteria.get("destination_city") or "Destination"
+    date = criteria.get("date") or ""
+    travelers = int(criteria.get("travelers") or 1)
+
+    if mode == "FLIGHT":
+        base = max(2500, 3200 + (travelers * 350))
+        durations = ["1h 45m", "2h 10m", "2h 30m"]
+        providers = ["IndiGo (est.)", "Air India (est.)", "Akasa Air (est.)"]
+    else:
+        base = max(350, 480 + (travelers * 80))
+        durations = ["8h 20m", "9h 10m", "10h 00m"]
+        providers = ["Vande Bharat (est.)", "Rajdhani (est.)", "Superfast Express (est.)"]
+
+    rows = []
+    for idx in range(3):
+        rows.append(
+            {
+                "provider": providers[idx],
+                "departure": origin,
+                "arrival": destination,
+                "duration": durations[idx],
+                "price": base + (idx * (600 if mode == "FLIGHT" else 180)),
+                "currency": "INR",
+                "booking_url": _default_booking_url(mode, origin, destination, date),
+                "notes": "Estimated option generated locally (no live provider lookup).",
+            }
         )
-    return results
+    return _normalize_rows(rows, mode, criteria)
+
+
+def _model_options(criteria, modes):
+    origin = criteria.get("origin") or criteria.get("origin_city") or ""
+    destination = criteria.get("destination") or criteria.get("destination_city") or ""
+    date = criteria.get("date") or ""
+    travelers = int(criteria.get("travelers") or 1)
+    mode_list = sorted(modes)
+
+    prompt = f"""
+Generate India travel transport fare estimates as JSON only.
+Origin: {origin}
+Destination: {destination}
+Date: {date}
+Travelers: {travelers}
+Modes: {", ".join(mode_list)}
+
+Return exactly this object shape:
+{{
+  "flights": [{{"provider":"", "departure":"", "arrival":"", "duration":"", "price":0, "currency":"INR", "booking_url":"", "notes":""}}],
+  "trains": [{{"provider":"", "departure":"", "arrival":"", "duration":"", "price":0, "currency":"INR", "booking_url":"", "notes":""}}]
+}}
+
+Rules:
+- Return up to 3 options per requested mode.
+- These are estimates, not live prices.
+- Use INR.
+- Do not include markdown or any extra text.
+""".strip()
+
+    chunks = []
+    text = invoke_bedrock_stream(prompt, on_token=lambda c: chunks.append(c), temperature=0.3, max_tokens=1200)
+    parsed = _extract_json(text or "".join(chunks))
+    if not isinstance(parsed, dict):
+        return {"flights": [], "trains": []}
+
+    flights = _normalize_rows(parsed.get("flights") or [], "FLIGHT", criteria) if "FLIGHT" in modes else []
+    trains = _normalize_rows(parsed.get("trains") or [], "TRAIN", criteria) if "TRAIN" in modes else []
+    return {"flights": flights, "trains": trains}
+
+
+def generate_transport_suggestions(criteria, modes):
+    """
+    Return transport suggestions without third-party paid APIs.
+    Output: ({'flights': [...], 'trains': [...]}, warnings)
+    """
+    requested = {str(mode or "").upper() for mode in (modes or [])}
+    if not requested:
+        requested = {"FLIGHT", "TRAIN"}
+
+    warnings = []
+    options = {"flights": [], "trains": []}
+    if is_ai_configured():
+        try:
+            options = _model_options(criteria, requested)
+        except Exception as exc:
+            logger.warning("AI transport suggestion failed: %s", exc)
+            warnings.append("AI transport estimate failed; using default indicative suggestions.")
+    else:
+        warnings.append("AI not configured for transport estimate; using default indicative suggestions.")
+
+    if "FLIGHT" in requested and not options.get("flights"):
+        options["flights"] = _heuristic_options(criteria, "FLIGHT")
+    if "TRAIN" in requested and not options.get("trains"):
+        options["trains"] = _heuristic_options(criteria, "TRAIN")
+    return options, warnings
 
 
 def search_flights(criteria):
-    """
-    Search flights from RapidAPI. Returns normalized options list.
-    criteria: {origin, destination, date, travelers}
-    """
-    if not _enabled():
-        return []
-
-    host = os.getenv("RAPIDAPI_FLIGHT_HOST", "sky-scrapper.p.rapidapi.com")
-    params = {
-        "fromEntityId": criteria.get("origin") or criteria.get("origin_city") or "",
-        "toEntityId": criteria.get("destination") or criteria.get("destination_city") or "",
-        "departDate": criteria.get("date") or "",
-        "adults": criteria.get("travelers") or 1,
-        "currency": "INR",
-        "market": "IN",
-        "locale": "en-IN",
-    }
-
-    candidate_paths = [
-        "/api/v1/flights/searchFlights",
-        "/api/v2/flights/searchFlights",
-        "/api/v1/flights/search",
-    ]
-
-    for path in candidate_paths:
-        try:
-            payload = _request(host, path, params)
-            rows = _as_list(payload)
-            options = _normalize_flight_rows(rows)
-            if options:
-                return options
-        except Exception as exc:
-            logger.info("Flight adapter path failed (%s%s): %s", host, path, exc)
-    return []
+    options, _ = generate_transport_suggestions(criteria, {"FLIGHT"})
+    return options.get("flights") or []
 
 
 def search_trains(criteria):
-    """
-    Search trains from RapidAPI. Returns normalized options list.
-    criteria: {origin, destination, date}
-    """
-    if not _enabled():
-        return []
-
-    host = os.getenv("RAPIDAPI_TRAIN_HOST", "irctc1.p.rapidapi.com")
-    params = {
-        "fromStationCode": criteria.get("origin") or criteria.get("origin_city") or "",
-        "toStationCode": criteria.get("destination") or criteria.get("destination_city") or "",
-        "dateOfJourney": criteria.get("date") or "",
-    }
-
-    candidate_paths = [
-        "/api/v1/searchTrain",
-        "/api/v2/searchTrain",
-        "/api/v1/trainBetweenStations",
-    ]
-
-    for path in candidate_paths:
-        try:
-            payload = _request(host, path, params)
-            rows = _as_list(payload)
-            options = _normalize_train_rows(rows)
-            if options:
-                return options
-        except Exception as exc:
-            logger.info("Train adapter path failed (%s%s): %s", host, path, exc)
-    return []
+    options, _ = generate_transport_suggestions(criteria, {"TRAIN"})
+    return options.get("trains") or []

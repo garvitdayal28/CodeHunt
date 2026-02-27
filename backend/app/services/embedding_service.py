@@ -53,5 +53,10 @@ def embed_texts(texts):
 
 
 def embed_text(text):
+    logger.debug("[EMBED] embed_text called — input_len=%d chars snippet=%r", len(text or ""), (text or "")[:80])
     vector_list = embed_texts([text or ""])
+    if vector_list:
+        logger.debug("[EMBED] embed_text OK — dim=%d", len(vector_list[0]))
+    else:
+        logger.warning("[EMBED] embed_text returned EMPTY vector list")
     return vector_list[0] if vector_list else []

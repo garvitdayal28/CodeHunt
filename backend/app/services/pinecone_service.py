@@ -140,28 +140,39 @@ def delete_vector(vector_id):
 
 def query_vector(vector, top_k=8, metadata_filter=None):
     if not vector:
+        logger.warning("[PINECONE_QUERY] Empty vector — skipping query")
         return []
     index = init_index(dimension=len(vector))
     if index is None:
+        logger.warning("[PINECONE_QUERY] Index is None — Pinecone not configured or unavailable")
         return []
 
+    ns = get_namespace()
+    logger.info(
+        "[PINECONE_QUERY] Querying index=%s namespace=%s top_k=%d filter=%s vector_dim=%d",
+        get_index_name(), ns, int(top_k), metadata_filter, len(vector),
+    )
     try:
         response = index.query(
             vector=vector,
             top_k=int(top_k),
-            namespace=get_namespace(),
+            namespace=ns,
             include_metadata=True,
             filter=metadata_filter or None,
         )
     except Exception as exc:
-        logger.warning("Pinecone query failed: %s", exc)
+        logger.warning("[PINECONE_QUERY] Query FAILED: %s", exc)
         return []
 
     matches = getattr(response, "matches", None)
     if matches is None and isinstance(response, dict):
         matches = response.get("matches", [])
     if not matches:
+        logger.warning("[PINECONE_QUERY] 0 matches from Pinecone — index may be empty or namespace mismatch")
         return []
+
+    logger.info("[PINECONE_QUERY] Got %d matches — top_score=%.4f", len(matches),
+                float(getattr(matches[0], "score", 0) if hasattr(matches[0], "score") else (matches[0].get("score", 0) if isinstance(matches[0], dict) else 0)))
 
     normalized = []
     for item in matches:

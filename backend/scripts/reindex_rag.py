@@ -18,6 +18,8 @@ if BACKEND_ROOT not in sys.path:
     sys.path.insert(0, BACKEND_ROOT)
 
 from app.services.rag_indexer_service import delete_entity, full_reindex, upsert_entity  # noqa: E402
+from app.services.firebase_service import init_firebase
+from flask import Flask
 
 
 def parse_args():
@@ -32,6 +34,10 @@ def parse_args():
 
 def main():
     args = parse_args()
+    
+    app = Flask(__name__)
+    init_firebase(app)
+    
     if args.full:
         result = full_reindex(dry_run=args.dry_run)
         print(result)

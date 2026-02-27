@@ -51,6 +51,11 @@ def emit_planner_event(session_id, event_name, payload):
     """Emit a planner event to subscribed clients for one session."""
     if not session_id or not event_name:
         return
+    import logging
+    logging.getLogger(__name__).debug(
+        "[PLANNER_EMIT] event=%s session=%s payload_keys=%s",
+        event_name, session_id[-8:], list((payload or {}).keys()),
+    )
     socketio.emit(
         event_name,
         payload or {},
@@ -923,14 +928,17 @@ def init_socketio(app):
         def on_planner_connect(auth):
             token = (auth or {}).get("token")
             if not token:
+                import logging; logging.getLogger(__name__).warning("[PLANNER_WS] connect rejected: no token sid=%s", request.sid)
                 return False
 
             decoded = verify_firebase_token(token)
             if decoded is None:
+                import logging; logging.getLogger(__name__).warning("[PLANNER_WS] connect rejected: invalid token sid=%s", request.sid)
                 return False
 
             uid = decoded.get("uid")
             if not uid:
+                import logging; logging.getLogger(__name__).warning("[PLANNER_WS] connect rejected: no uid in token sid=%s", request.sid)
                 return False
 
             _planner_socket_users[request.sid] = {
@@ -938,6 +946,7 @@ def init_socketio(app):
                 "role": decoded.get("role", "TRAVELER"),
             }
             join_room(f"planner_user:{uid}")
+            import logging; logging.getLogger(__name__).info("[PLANNER_WS] client connected sid=%s uid=%s", request.sid, uid)
             emit("planner:connected", {"connected": True, "uid": uid})
             return True
 
@@ -960,6 +969,7 @@ def init_socketio(app):
             db = get_firestore_client()
             session_doc = db.collection("planner_sessions").document(session_id).get()
             if not session_doc.exists:
+                import logging; logging.getLogger(__name__).warning("[PLANNER_WS] subscribe: session not found session_id=%s", session_id)
                 emit("planner:error", {"error": "NOT_FOUND", "message": "Planner session not found."})
                 return
 
@@ -969,6 +979,10 @@ def init_socketio(app):
                 return
 
             join_room(f"planner_session:{session_id}")
+            import logging; logging.getLogger(__name__).info(
+                "[PLANNER_WS] client subscribed sid=%s uid=%s session=%s",
+                request.sid, ctx.get("uid"), session_id[-8:],
+            )
             emit("planner:subscribed", {"session_id": session_id})
 
         @socketio.on("planner:unsubscribe", namespace="/planner")

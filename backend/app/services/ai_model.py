@@ -88,16 +88,22 @@ def invoke_bedrock_stream(prompt, on_token, temperature=0.7, max_tokens=4096):
     Returns final concatenated text.
     """
     if not is_ai_configured():
+        logger.error("invoke_bedrock_stream: AI not configured — check AWS_KEY/AWS_SECRET/.env")
         raise ValueError("AI model is not configured")
     if on_token is None:
         raise ValueError("on_token callback is required")
 
+    logger.info(
+        "invoke_bedrock_stream: starting — model=%s primary=%s fallback=%s prompt_chars=%d max_tokens=%d",
+        MODEL_ID, PRIMARY_REGION, FALLBACK_REGION, len(prompt), max_tokens,
+    )
     body = _build_converse_body(prompt, temperature=temperature, max_tokens=max_tokens)
     last_error = None
 
     for region in [PRIMARY_REGION, FALLBACK_REGION]:
         text_parts = []
         try:
+            logger.info("invoke_bedrock_stream: trying region=%s", region)
             client = _bedrock_client(region)
             response = client.converse_stream(
                 modelId=MODEL_ID,
@@ -105,6 +111,7 @@ def invoke_bedrock_stream(prompt, on_token, temperature=0.7, max_tokens=4096):
                 inferenceConfig=body["inferenceConfig"],
             )
             stream = response.get("stream", [])
+            token_count = 0
             for event in stream:
                 if not isinstance(event, dict):
                     continue
@@ -113,18 +120,32 @@ def invoke_bedrock_stream(prompt, on_token, temperature=0.7, max_tokens=4096):
                 text = delta.get("text")
                 if isinstance(text, str) and text:
                     text_parts.append(text)
+                    token_count += 1
                     on_token(text)
 
             final_text = "".join(text_parts).strip()
             if not final_text:
                 raise ValueError("No streamed text returned by model")
+            logger.info("invoke_bedrock_stream: success region=%s tokens=%d chars=%d", region, token_count, len(final_text))
             return final_text
         except (ClientError, BotoCoreError, KeyError, IndexError, TypeError) as exc:
-            logger.warning("Bedrock stream failed in region=%s: %s", region, exc)
+            logger.warning("invoke_bedrock_stream: stream failed region=%s exc_type=%s exc=%s", region, type(exc).__name__, exc)
             last_error = exc
         except ValueError as exc:
-            logger.warning("Bedrock stream parse failed in region=%s: %s", region, exc)
+            logger.warning("invoke_bedrock_stream: parse failed region=%s exc=%s", region, exc)
             last_error = exc
+
+    # Graceful fallback: some model/region combinations can fail on streaming
+    # while standard Converse still succeeds. Return full text as one chunk.
+    logger.warning("invoke_bedrock_stream: both regions failed, falling back to non-stream converse")
+    try:
+        fallback_text = _invoke_bedrock(prompt, temperature=temperature, max_tokens=max_tokens)
+        if fallback_text:
+            logger.info("invoke_bedrock_stream: non-stream fallback succeeded chars=%d", len(fallback_text))
+            on_token(fallback_text)
+            return fallback_text
+    except Exception as fallback_exc:
+        logger.warning("invoke_bedrock_stream: non-stream fallback also failed: %s", fallback_exc)
 
     raise RuntimeError(f"Bedrock streaming failed in both regions: {last_error}")
 

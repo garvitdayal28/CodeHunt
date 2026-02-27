@@ -2,6 +2,7 @@
 
 import json
 import logging
+import traceback
 import threading
 import time
 from datetime import datetime, timedelta
@@ -19,7 +20,7 @@ from app.services.planner_errors import (
 )
 from app.services.planner_schemas import normalize_transport_option
 from app.services.rag_indexer_service import retrieve, retrieval_stats
-from app.services.transport_service import search_flights, search_trains
+from app.services.transport_service import generate_transport_suggestions
 
 logger = logging.getLogger(__name__)
 
@@ -79,12 +80,14 @@ def _set_status(session_id, status, extra=None):
 
 def _progress(session_id, stage, status, message, started_at, extra=None):
     now = time.time()
+    elapsed = int((now - started_at) * 1000)
+    logger.debug("[PLANNER:%s] PROGRESS stage=%s status=%s elapsed=%dms msg=%s", session_id[-8:], stage, status, elapsed, message)
     payload = {
         "session_id": session_id,
         "stage": stage,
         "status": status,
         "message": message,
-        "elapsed_ms": int((now - started_at) * 1000),
+        "elapsed_ms": elapsed,
     }
     if extra:
         payload.update(extra)
@@ -93,6 +96,7 @@ def _progress(session_id, stage, status, message, started_at, extra=None):
 
 
 def _token(session_id, chunk):
+    logger.debug("[PLANNER:%s] TOKEN len=%d snippet=%r", session_id[-8:], len(chunk), chunk[:40])
     payload = {"session_id": session_id, "chunk": chunk}
     _append_event(session_id, {"type": "token", "chunk": chunk})
     _emit_socket(session_id, "planner:token", payload)
@@ -246,19 +250,22 @@ def _transport_lookup(input_payload, started_at, session_id):
     }
 
     modes = set(input_payload.get("transport_modes") or [])
-    if "FLIGHT" in modes:
-        _progress(session_id, "transport_lookup", "RUNNING", "Searching live flight options", started_at)
-        flights = search_flights(criteria)
-        options["flights"] = [normalize_transport_option(item) for item in flights]
-        if not options["flights"]:
-            warnings.append("No live flight options returned from provider.")
+    _progress(
+        session_id,
+        "transport_lookup",
+        "RUNNING",
+        "Generating transport estimates (AI/default suggestions)",
+        started_at,
+    )
+    generated_options, generation_warnings = generate_transport_suggestions(criteria, modes)
+    options["flights"] = [normalize_transport_option(item) for item in (generated_options.get("flights") or [])]
+    options["trains"] = [normalize_transport_option(item) for item in (generated_options.get("trains") or [])]
+    warnings.extend(generation_warnings or [])
 
-    if "TRAIN" in modes:
-        _progress(session_id, "transport_lookup", "RUNNING", "Searching live train options", started_at)
-        trains = search_trains(criteria)
-        options["trains"] = [normalize_transport_option(item) for item in trains]
-        if not options["trains"]:
-            warnings.append("No live train options returned from provider.")
+    if "FLIGHT" in modes and not options["flights"]:
+        warnings.append("No flight suggestions generated.")
+    if "TRAIN" in modes and not options["trains"]:
+        warnings.append("No train suggestions generated.")
 
     return options, warnings
 
@@ -396,6 +403,9 @@ def run_session(session_id):
     stream_buffer = []
     progress_messages = []
 
+    logger.info("[PLANNER:%s] run_session started — traveler=%s destination=%s",
+                 session_id[-8:], traveler_uid, planner_input.get("destination"))
+
     try:
         if _is_cancelled(session_id):
             raise RuntimeError(PLANNER_CANCELLED)
@@ -447,6 +457,7 @@ def run_session(session_id):
 
         _progress(session_id, "plan_synthesis_stream", "RUNNING", "Generating itinerary with streamed output", started_at)
         prompt = _build_planner_prompt(planner_input, rag_context, rag_meta, transport)
+        logger.info("[PLANNER:%s] Bedrock stream starting — prompt_len=%d chars", session_id[-8:], len(prompt))
 
         def on_chunk(chunk):
             if _is_cancelled(session_id):
@@ -454,7 +465,9 @@ def run_session(session_id):
             stream_buffer.append(chunk)
             _token(session_id, chunk)
 
-        text = invoke_bedrock_stream(prompt, on_chunk=on_chunk, temperature=0.6, max_tokens=8192)
+        # NOTE: parameter name in invoke_bedrock_stream is `on_token` (not on_chunk)
+        text = invoke_bedrock_stream(prompt, on_token=on_chunk, temperature=0.6, max_tokens=8192)
+        logger.info("[PLANNER:%s] Bedrock stream finished — total_chars=%d", session_id[-8:], len(text))
         parsed = _extract_json(text)
         if not isinstance(parsed, dict):
             parsed = {
@@ -525,6 +538,12 @@ def run_session(session_id):
             error_code = RAG_UNAVAILABLE
         elif error_text == TRANSPORT_PROVIDER_UNAVAILABLE:
             error_code = TRANSPORT_PROVIDER_UNAVAILABLE
+
+        logger.error(
+            "[PLANNER:%s] run_session FAILED — status=%s error_code=%s error=%s\n%s",
+            session_id[-8:], status, error_code, error_text,
+            traceback.format_exc(),
+        )
 
         _set_status(
             session_id,

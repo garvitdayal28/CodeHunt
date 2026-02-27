@@ -25,8 +25,18 @@ def create_app(config_name=None):
     # ──────────────────────────────────────────────
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s",
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     )
+    # Enable DEBUG for planner / AI / RAG modules so all diagnostic logs surface
+    for _debug_module in (
+        "app.services.planner_orchestrator",
+        "app.services.ai_model",
+        "app.services.socket_service",
+        "app.services.rag_indexer_service",
+        "app.services.pinecone_service",
+        "app.services.embedding_service",
+    ):
+        logging.getLogger(_debug_module).setLevel(logging.DEBUG)
 
     # ──────────────────────────────────────────────
     # CORS

@@ -110,13 +110,20 @@ def delete_entity(entity_type, entity_id, dry_run=False):
 
 def retrieve(query_text, top_k=None, entity_types=None):
     """Retrieve semantic matches for planner RAG."""
+    effective_top_k = top_k or get_rag_top_k()
+    logger.info(
+        "[RAG_RETRIEVE] query=%r top_k=%d entity_types=%s threshold=%.3f",
+        (query_text or "")[:120], effective_top_k, entity_types, get_rag_score_threshold(),
+    )
     try:
         vector = embed_text(query_text or "")
     except Exception as exc:
-        logger.warning("Embedding generation failed during retrieval: %s", exc)
+        logger.warning("[RAG_RETRIEVE] Embedding generation FAILED: %s", exc)
         return []
     if not vector:
+        logger.warning("[RAG_RETRIEVE] embed_text returned empty vector — aborting retrieval")
         return []
+    logger.debug("[RAG_RETRIEVE] Embedding OK — vector_dim=%d first_3=%s", len(vector), vector[:3])
 
     metadata_filter = None
     if entity_types:
@@ -124,14 +131,19 @@ def retrieve(query_text, top_k=None, entity_types=None):
         if norm_types:
             metadata_filter = {"entity_type": {"$in": norm_types}}
 
-    matches = query_vector(vector, top_k=top_k or get_rag_top_k(), metadata_filter=metadata_filter)
+    matches = query_vector(vector, top_k=effective_top_k, metadata_filter=metadata_filter)
+    logger.info(
+        "[RAG_RETRIEVE] Pinecone returned %d raw matches (filter=%s)",
+        len(matches), metadata_filter,
+    )
     results = []
     for match in matches:
         md = match.get("metadata") or {}
+        score = _to_float(match.get("score"))
         results.append(
             {
                 "id": match.get("id"),
-                "score": _to_float(match.get("score")),
+                "score": score,
                 "entity_type": md.get("entity_type"),
                 "entity_id": md.get("entity_id"),
                 "title": md.get("title"),
@@ -139,16 +151,29 @@ def retrieve(query_text, top_k=None, entity_types=None):
                 "metadata": md,
             }
         )
+    if results:
+        logger.info(
+            "[RAG_RETRIEVE] Returning %d results — top_score=%.4f top_id=%s top_title=%r",
+            len(results), results[0]["score"], results[0]["id"], (results[0].get("title") or "")[:60],
+        )
+    else:
+        logger.warning("[RAG_RETRIEVE] 0 results returned — possible causes: empty index, bad query, or Pinecone misconfigured")
     return results
 
 
 def retrieval_stats(matches):
     if not matches:
+        logger.info("[RAG_STATS] No matches — confidence=low")
         return {"count": 0, "top_score": 0.0, "avg_score": 0.0, "confidence": "low"}
     scores = [_to_float(item.get("score")) for item in matches]
     top_score = max(scores)
     avg_score = sum(scores) / len(scores)
-    confidence = "high" if top_score >= get_rag_score_threshold() else "low"
+    threshold = get_rag_score_threshold()
+    confidence = "high" if top_score >= threshold else "low"
+    logger.info(
+        "[RAG_STATS] count=%d top=%.4f avg=%.4f threshold=%.3f → confidence=%s",
+        len(matches), top_score, avg_score, threshold, confidence,
+    )
     return {
         "count": len(matches),
         "top_score": round(top_score, 4),
