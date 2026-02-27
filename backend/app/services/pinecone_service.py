@@ -19,7 +19,7 @@ def is_pinecone_configured():
 
 
 def get_namespace():
-    return os.getenv("PINECONE_NAMESPACE", "default")
+    return os.getenv("PINECONE_NAMESPACE", "")
 
 
 def get_index_name():

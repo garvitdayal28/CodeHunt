@@ -27,19 +27,19 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 BASE = {
-    "hotels": 400,
-    "restaurants": 300,
-    "guides": 220,
-    "tours": 500,
-    "drivers": 250,
-    "travelers": 180,
-    "itineraries": 280,
-    "rides": 1500,
-    "menu_items": 4000,
-    "guide_services": 1300,
+    "hotels": 8,
+    "restaurants": 6,
+    "guides": 5,
+    "tours": 10,
+    "drivers": 5,
+    "travelers": 4,
+    "itineraries": 6,
+    "rides": 10,
+    "menu_items": 30,
+    "guide_services": 15,
 }
-FACTORS = {"large": 1.0, "very_large": 1.75, "massive": 2.5}
-JBP = {"hotels": 35, "restaurants": 25, "guides": 18, "tours": 30, "drivers": 20}
+FACTORS = {"small": 0.5, "medium": 1.0, "large": 5.0, "very_large": 10.0, "massive": 20.0}
+JBP = {"hotels": 2, "restaurants": 2, "guides": 1, "tours": 3, "drivers": 1}
 
 CITIES = [
     ("Mumbai", "Maharashtra", 19.0760, 72.8777), ("Delhi", "Delhi", 28.6139, 77.2090),
@@ -125,16 +125,21 @@ def jitter(city: str, cm, rng: random.Random):
     return round(c["lat"] + rng.uniform(-0.08, 0.08), 6), round(c["lng"] + rng.uniform(-0.08, 0.08), 6)
 
 
+# Per-entity sub-item counts (kept small to avoid quota issues)
+ROOMS_PER_HOTEL = 3
+SLOTS_PER_TOUR = 2
+
+
 def counts(profile: str):
     f = FACTORS[profile]
     c = {k: max(1, int(round(v * f))) for k, v in BASE.items()}
-    c["room_types"] = c["hotels"] * 15
-    c["time_slots"] = c["tours"] * 8
+    c["room_types"] = c["hotels"] * ROOMS_PER_HOTEL
+    c["time_slots"] = c["tours"] * SLOTS_PER_TOUR
     c["driver_presence"] = c["drivers"]
-    c["menu_items"] = max(c["menu_items"], c["restaurants"] * 10)
-    c["guide_services"] = max(c["guide_services"], c["guides"] * 4)
+    c["menu_items"] = max(c["menu_items"], c["restaurants"] * 3)
+    c["guide_services"] = max(c["guide_services"], c["guides"] * 2)
     c["itineraries"] = max(c["itineraries"], c["travelers"])
-    c["rides"] = max(c["rides"], c["drivers"] * 4)
+    c["rides"] = max(c["rides"], c["drivers"] * 2)
     return c
 
 
@@ -262,7 +267,7 @@ def init_db():
 
 def main():
     p = argparse.ArgumentParser(description="Seed large India-only Firestore demo data.")
-    p.add_argument("--profile", choices=["large", "very_large", "massive"], default="large")
+    p.add_argument("--profile", choices=["small", "medium", "large", "very_large", "massive"], default="small")
     p.add_argument("--scope", choices=["full", "requested", "rag_core"], default="full")
     p.add_argument("--append-only", action="store_true", default=True)
     p.add_argument("--seed", type=int, default=20260226)
@@ -297,7 +302,7 @@ def main():
         hname = f"{rng.choice(['Grand','Royal','Urban','Heritage'])} {city} {rng.choice(['Residency','Suites','Palace','Inn'])}"
         rooms = []
         total_rooms = 0
-        for j in range(1, 16):
+        for j in range(1, ROOMS_PER_HOTEL + 1):
             rid = did(f"room{i}", stag, j)
             tr = rng.randint(2, 14)
             total_rooms += tr
@@ -378,7 +383,7 @@ def main():
         op_name = op["display_name"] if op else f"Operator {i}"
         day = datetime.now(timezone.utc).date() + timedelta(days=rng.randint(1, 120))
         slots = []
-        for j in range(1, 9):
+        for j in range(1, SLOTS_PER_TOUR + 1):
             sidv = did(f"slot{i}", stag, j)
             st = datetime.combine(day + timedelta(days=(j - 1) // 2), datetime.min.time()) + timedelta(hours=8 + ((j - 1) % 4) * 3)
             cap = rng.randint(12, 36)

@@ -1,7 +1,13 @@
 """Builds normalized RAG documents from Firestore business/tour data."""
 
+import logging
+import time
+
+from google.api_core.exceptions import ResourceExhausted
+
 from app.services.firebase_service import get_firestore_client
 
+logger = logging.getLogger(__name__)
 
 ENTITY_HOTEL = "HOTEL"
 ENTITY_RESTAURANT = "RESTAURANT"
@@ -21,6 +27,21 @@ def _string_list(value):
     return []
 
 
+def _retry_stream(collection_ref, max_retries=3, base_delay=2.0):
+    """Stream a Firestore collection with retry on quota exhaustion."""
+    for attempt in range(max_retries):
+        try:
+            return list(collection_ref.stream())
+        except ResourceExhausted:
+            if attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt)
+                logger.warning("[RAG_DOC] Firestore quota exceeded, retrying in %.1fs (attempt %d/%d)", delay, attempt + 1, max_retries)
+                time.sleep(delay)
+            else:
+                logger.error("[RAG_DOC] Firestore quota exceeded after %d retries, returning empty", max_retries)
+                return []
+
+
 def _hotel_doc(uid, data):
     profile = (data or {}).get("business_profile") or {}
     details = profile.get("details") or {}
@@ -30,7 +51,7 @@ def _hotel_doc(uid, data):
 
     room_docs = []
     db = get_firestore_client()
-    for room_doc in db.collection("users").document(uid).collection("room_types").stream():
+    for room_doc in _retry_stream(db.collection("users").document(uid).collection("room_types")):
         room = room_doc.to_dict() or {}
         if room.get("is_active") is False:
             continue
@@ -83,7 +104,7 @@ def _restaurant_doc(uid, data):
 
     db = get_firestore_client()
     menu_lines = []
-    for menu_doc in db.collection("users").document(uid).collection("menu_items").stream():
+    for menu_doc in _retry_stream(db.collection("users").document(uid).collection("menu_items")):
         item = menu_doc.to_dict() or {}
         if item.get("is_available") is False:
             continue
@@ -179,7 +200,7 @@ def build_all_documents():
     db = get_firestore_client()
     docs = []
 
-    for user_doc in db.collection("users").where("role", "==", "BUSINESS").stream():
+    for user_doc in _retry_stream(db.collection("users").where("role", "==", "BUSINESS")):
         user = user_doc.to_dict() or {}
         profile = user.get("business_profile") or {}
         business_type = _string(profile.get("business_type"))
@@ -188,10 +209,10 @@ def build_all_documents():
         elif business_type == "RESTAURANT":
             docs.append(_restaurant_doc(user_doc.id, user))
 
-    for tour_doc in db.collection("tours").stream():
+    for tour_doc in _retry_stream(db.collection("tours")):
         docs.append(_tour_doc(tour_doc.id, tour_doc.to_dict() or {}))
 
-    for guide_doc in db.collection_group("guide_services").stream():
+    for guide_doc in _retry_stream(db.collection_group("guide_services")):
         guide = guide_doc.to_dict() or {}
         if guide.get("is_active") is False:
             continue

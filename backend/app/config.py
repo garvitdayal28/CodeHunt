@@ -27,7 +27,7 @@ class Config:
     RAPIDAPI_TRAIN_HOST = os.getenv("RAPIDAPI_TRAIN_HOST", "irctc1.p.rapidapi.com")
     PINECONE_API_KEY = os.getenv("PINECONE_API_KEY") or os.getenv("PINECONE_KEY")
     PINECONE_INDEX = os.getenv("PINECONE_INDEX", "tripallied-rag")
-    PINECONE_NAMESPACE = os.getenv("PINECONE_NAMESPACE", "default")
+    PINECONE_NAMESPACE = os.getenv("PINECONE_NAMESPACE", "")
     HF_EMBED_MODEL = os.getenv("HF_EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
     RAG_TOP_K = int(os.getenv("RAG_TOP_K", "8"))
     RAG_SCORE_THRESHOLD = float(os.getenv("RAG_SCORE_THRESHOLD", "0.45"))
