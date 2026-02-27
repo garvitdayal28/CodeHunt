@@ -8,12 +8,64 @@ import os
 import json
 import base64
 import logging
+import time
 import firebase_admin
 from firebase_admin import credentials, auth, firestore
 
 
 _firebase_app = None
 _firestore_client = None
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# In-memory user doc cache — reduces Firestore reads on auth/me
+# ---------------------------------------------------------------------------
+_user_cache = {}  # uid -> {"data": dict, "ts": float}
+_USER_CACHE_TTL = 60  # seconds
+
+
+def get_cached_user(uid):
+    """Return cached user dict or None if expired/missing."""
+    entry = _user_cache.get(uid)
+    if entry and (time.time() - entry["ts"]) < _USER_CACHE_TTL:
+        return entry["data"]
+    return None
+
+
+def set_cached_user(uid, data):
+    """Store user dict in cache with current timestamp."""
+    _user_cache[uid] = {"data": data, "ts": time.time()}
+
+
+def invalidate_cached_user(uid):
+    """Remove a user from cache (e.g. after profile update)."""
+    _user_cache.pop(uid, None)
+
+# ---------------------------------------------------------------------------
+# Firestore retry helper — handles 429 Quota Exceeded gracefully
+# ---------------------------------------------------------------------------
+
+def firestore_retry(fn, max_retries=5, base_delay=2.0):
+    """
+    Call *fn()* with exponential backoff on Firestore quota errors.
+    Returns the result of fn() on success, or re-raises on final failure.
+    """
+    for attempt in range(max_retries):
+        try:
+            return fn()
+        except Exception as exc:
+            exc_str = str(exc)
+            # Catch 429 / RESOURCE_EXHAUSTED from google-api-core or grpc
+            if "429" in exc_str or "Quota exceeded" in exc_str or "RESOURCE_EXHAUSTED" in exc_str:
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    logger.warning(
+                        "[FIRESTORE_RETRY] Quota exceeded, retrying in %.1fs (attempt %d/%d)",
+                        delay, attempt + 1, max_retries,
+                    )
+                    time.sleep(delay)
+                    continue
+            raise
 
 
 def _get_clock_skew_seconds():

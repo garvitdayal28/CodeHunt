@@ -190,6 +190,37 @@ export default function RealtimeTripPlanner() {
       setSessionId(createdId || "");
       if (createdId) {
         subscribeSession(createdId);
+        // Auto-refresh after a delay to catch any events missed before subscribing
+        setTimeout(async () => {
+          try {
+            const refreshRes = await api.get(
+              `/ai/planner/sessions/${createdId}`,
+            );
+            const refreshData = refreshRes?.data?.data || {};
+            if (refreshData.status && refreshData.status !== "QUEUED") {
+              setSessionStatus(refreshData.status);
+            }
+            if (refreshData.stream_text) {
+              setStreamText(refreshData.stream_text);
+            }
+            if (refreshData.result_json) {
+              setResult(refreshData.result_json);
+            }
+            const evts = (refreshData.events || [])
+              .filter((item) => item.type === "progress")
+              .map((item) => ({
+                stage: item.stage,
+                status: item.status,
+                message: item.message,
+                elapsed_ms: item.elapsed_ms,
+              }));
+            if (evts.length > 0) {
+              setProgressEvents(evts);
+            }
+          } catch {
+            /* ignore */
+          }
+        }, 5000);
       }
     } catch (err) {
       setError(

@@ -8,8 +8,12 @@ from flask import Blueprint, request
 
 from app.services.firebase_service import (
     create_firebase_user,
+    firestore_retry,
+    get_cached_user,
     get_firestore_client,
     get_user_by_uid,
+    invalidate_cached_user,
+    set_cached_user,
     set_custom_claims,
 )
 from app.utils.business_profile import BUSINESS_ROLE, validate_and_normalize_business_profile
@@ -154,9 +158,15 @@ def get_current_user():
         return error_response("INVALID_TOKEN", "Invalid or expired token.", 401)
 
     uid = decoded.get("uid")
+
+    # Fast path: return cached user doc if available
+    cached = get_cached_user(uid)
+    if cached:
+        return success_response(cached)
+
     db = get_firestore_client()
     user_ref = db.collection("users").document(uid)
-    user_doc = user_ref.get()
+    user_doc = firestore_retry(lambda: user_ref.get())
 
     if not user_doc.exists:
         # Self-heal for users that exist in Firebase Auth but missed profile sync.
@@ -172,10 +182,13 @@ def get_current_user():
             "linked_property_id": None,
             "linked_operator_id": None,
         }
-        user_ref.set(fallback_profile, merge=True)
+        firestore_retry(lambda: user_ref.set(fallback_profile, merge=True))
+        set_cached_user(uid, fallback_profile)
         return success_response(fallback_profile, 200, "User profile auto-created.")
 
-    return success_response(user_doc.to_dict())
+    user_data = user_doc.to_dict()
+    set_cached_user(uid, user_data)
+    return success_response(user_data)
 
 
 @auth_bp.route("/me", methods=["PUT"])
@@ -205,7 +218,7 @@ def update_current_user():
     uid = decoded.get("uid")
     db = get_firestore_client()
     user_ref = db.collection("users").document(uid)
-    user_doc = user_ref.get()
+    user_doc = firestore_retry(lambda: user_ref.get())
     if not user_doc.exists:
         return error_response("USER_NOT_FOUND", "User profile not found.", 404)
 
@@ -220,6 +233,8 @@ def update_current_user():
             value = data.get(field)
             payload[field] = str(value).strip() if value is not None else ""
 
-    user_ref.set(payload, merge=True)
-    updated = user_ref.get().to_dict()
+    firestore_retry(lambda: user_ref.set(payload, merge=True))
+    updated = firestore_retry(lambda: user_ref.get()).to_dict()
+    invalidate_cached_user(uid)
+    set_cached_user(uid, updated)
     return success_response(updated, 200, "Profile updated successfully.")

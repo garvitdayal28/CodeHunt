@@ -966,8 +966,9 @@ def init_socketio(app):
                 emit("planner:error", {"error": "MISSING_SESSION_ID", "message": "session_id is required."})
                 return
 
+            from app.services.firebase_service import firestore_retry
             db = get_firestore_client()
-            session_doc = db.collection("planner_sessions").document(session_id).get()
+            session_doc = firestore_retry(lambda: db.collection("planner_sessions").document(session_id).get())
             if not session_doc.exists:
                 import logging; logging.getLogger(__name__).warning("[PLANNER_WS] subscribe: session not found session_id=%s", session_id)
                 emit("planner:error", {"error": "NOT_FOUND", "message": "Planner session not found."})

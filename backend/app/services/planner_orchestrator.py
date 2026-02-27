@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from urllib.parse import quote_plus
 
 from app.services.ai_model import invoke_bedrock_stream, is_ai_configured
-from app.services.firebase_service import get_firestore_client
+from app.services.firebase_service import firestore_retry, get_firestore_client
 from app.services.planner_errors import (
     AI_NOT_CONFIGURED,
     PLANNER_CANCELLED,
@@ -64,7 +64,7 @@ def _append_event(session_id, payload):
     db = get_firestore_client()
     doc = dict(payload or {})
     doc["created_at"] = _now_iso()
-    db.collection("planner_sessions").document(session_id).collection("events").add(doc)
+    firestore_retry(lambda: db.collection("planner_sessions").document(session_id).collection("events").add(doc))
 
 
 def _set_status(session_id, status, extra=None):
@@ -75,7 +75,7 @@ def _set_status(session_id, status, extra=None):
     }
     if extra:
         update_payload.update(extra)
-    db.collection("planner_sessions").document(session_id).set(update_payload, merge=True)
+    firestore_retry(lambda: db.collection("planner_sessions").document(session_id).set(update_payload, merge=True))
 
 
 def _progress(session_id, stage, status, message, started_at, extra=None):
@@ -144,7 +144,7 @@ def create_session(traveler_uid, planner_input):
         "updated_at": now_iso,
     }
     ref = db.collection("planner_sessions").document()
-    ref.set(payload)
+    firestore_retry(lambda: ref.set(payload))
     payload["id"] = ref.id
     return payload
 
@@ -153,7 +153,7 @@ def list_sessions(traveler_uid, limit=20):
     db = get_firestore_client()
     query = db.collection("planner_sessions").where("traveler_uid", "==", traveler_uid)
     sessions = []
-    for doc in query.stream():
+    for doc in firestore_retry(lambda: list(query.stream())):
         data = doc.to_dict() or {}
         data["id"] = doc.id
         sessions.append(data)
@@ -163,7 +163,7 @@ def list_sessions(traveler_uid, limit=20):
 
 def get_session(session_id, traveler_uid):
     db = get_firestore_client()
-    doc = db.collection("planner_sessions").document(session_id).get()
+    doc = firestore_retry(lambda: db.collection("planner_sessions").document(session_id).get())
     valid, code, msg = _validate_ownership(doc, traveler_uid)
     if not valid:
         return None, code, msg
@@ -171,13 +171,13 @@ def get_session(session_id, traveler_uid):
     data["id"] = doc.id
 
     events = []
-    for evt in (
+    for evt in firestore_retry(lambda: list(
         db.collection("planner_sessions")
         .document(session_id)
         .collection("events")
         .order_by("created_at", direction="ASCENDING")
         .stream()
-    ):
+    )):
         row = evt.to_dict() or {}
         row["id"] = evt.id
         events.append(row)
@@ -187,7 +187,7 @@ def get_session(session_id, traveler_uid):
 
 def cancel_session(session_id, traveler_uid):
     db = get_firestore_client()
-    doc = db.collection("planner_sessions").document(session_id).get()
+    doc = firestore_retry(lambda: db.collection("planner_sessions").document(session_id).get())
     valid, code, msg = _validate_ownership(doc, traveler_uid)
     if not valid:
         return False, code, msg
@@ -368,6 +368,7 @@ def _create_draft_itinerary(traveler_uid, planner_input):
     db = get_firestore_client()
     start_date = planner_input.get("start_date")
     end_date = planner_input.get("end_date")
+    # Note: Firestore writes below are wrapped with firestore_retry at the _set_status / _append_event level
     if not start_date:
         start_date = datetime.utcnow().strftime("%Y-%m-%d")
     if not end_date:
@@ -386,14 +387,14 @@ def _create_draft_itinerary(traveler_uid, planner_input):
         "updated_at": _now_iso(),
     }
     ref = db.collection("itineraries").document()
-    ref.set(payload)
+    firestore_retry(lambda: ref.set(payload))
     return ref.id
 
 
 def run_session(session_id):
     db = get_firestore_client()
     doc_ref = db.collection("planner_sessions").document(session_id)
-    doc = doc_ref.get()
+    doc = firestore_retry(lambda: doc_ref.get())
     if not doc.exists:
         return
     session = doc.to_dict() or {}
@@ -405,6 +406,10 @@ def run_session(session_id):
 
     logger.info("[PLANNER:%s] run_session started — traveler=%s destination=%s",
                  session_id[-8:], traveler_uid, planner_input.get("destination"))
+
+    # Allow the client a few seconds to subscribe to the session room
+    # before we start emitting events, to avoid a race condition.
+    time.sleep(3)
 
     try:
         if _is_cancelled(session_id):
